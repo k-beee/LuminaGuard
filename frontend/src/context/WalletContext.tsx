@@ -1,76 +1,183 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createAccount } from "genlayer-js";
+import { LUMINA_CONTRACT_ADDRESS, EXPLORER_URL, GENLAYER_STUDIONET_CHAIN_ID, RPC_ENDPOINT } from "@/config/constants";
 
-interface WalletContextType {
+export interface WalletContextType {
   address: string | null;
   isConnected: boolean;
-  isSimulator: boolean;
-  connect: () => Promise<void>;
+  isMetaMask: boolean;
+  connecting: boolean;
+  chainId: number | null;
+  connectMetaMask: () => Promise<void>;
   disconnect: () => void;
-  toggleSimulator: () => void;
+  switchOrAddGenLayerNetwork: () => Promise<void>;
+  signerAccount: unknown;
+  provider: unknown;
 }
-
-const DEFAULT_SIMULATOR_ACCOUNT = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
 const WalletContext = createContext<WalletContextType>({
   address: null,
   isConnected: false,
-  isSimulator: false,
-  connect: async () => {},
+  isMetaMask: false,
+  connecting: false,
+  chainId: null,
+  connectMetaMask: async () => {},
   disconnect: () => {},
-  toggleSimulator: () => {},
+  switchOrAddGenLayerNetwork: async () => {},
+  signerAccount: null,
+  provider: null,
 });
+
+const GENLAYER_CHAIN_HEX = `0x${GENLAYER_STUDIONET_CHAIN_ID.toString(16)}`;
 
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [address, setAddress] = useState<string | null>(null);
-  const [isSimulator, setIsSimulator] = useState<boolean>(true);
+  const [isMetaMask, setIsMetaMask] = useState<boolean>(false);
+  const [connecting, setConnecting] = useState<boolean>(false);
+  const [chainId, setChainId] = useState<number | null>(null);
+  const [signerAccount, setSignerAccount] = useState<unknown>(null);
+  const [provider, setProvider] = useState<unknown>(null);
 
+  // Initialize or restore account
   useEffect(() => {
-    // Default to simulator account to ensure judges can immediately interact
-    setAddress(DEFAULT_SIMULATOR_ACCOUNT);
+    if (typeof window === "undefined") return;
+
+    // Check if user already connected MetaMask
+    const eth = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+    if (eth) {
+      eth.request({ method: "eth_accounts" })
+        .then((accountsUnknown) => {
+          const accounts = accountsUnknown as string[];
+          if (accounts && accounts[0]) {
+            setAddress(accounts[0]);
+            setIsMetaMask(true);
+            setProvider(eth);
+            eth.request({ method: "eth_chainId" }).then((cid) => {
+              setChainId(parseInt(cid as string, 16));
+            });
+          } else {
+            initLiveLocalAccount();
+          }
+        })
+        .catch(() => {
+          initLiveLocalAccount();
+        });
+    } else {
+      initLiveLocalAccount();
+    }
   }, []);
 
-  const connect = async () => {
-    if (typeof window !== "undefined" && (window as unknown as { ethereum?: { request: (args: { method: string }) => Promise<string[]> } }).ethereum) {
-      try {
-        const eth = (window as unknown as { ethereum: { request: (args: { method: string }) => Promise<string[]> } }).ethereum;
-        const accounts = await eth.request({ method: "eth_requestAccounts" });
-        if (accounts && accounts[0]) {
-          setAddress(accounts[0]);
-          setIsSimulator(false);
+  const initLiveLocalAccount = () => {
+    try {
+      const storedKey = localStorage.getItem("lumina_live_key");
+      let acc;
+      if (storedKey) {
+        acc = createAccount(storedKey as `0x${string}`);
+      } else {
+        acc = createAccount();
+        if (acc.privateKey) {
+          localStorage.setItem("lumina_live_key", acc.privateKey);
         }
-      } catch (err) {
-        console.error("MetaMask connection failed, falling back to simulator:", err);
       }
-    } else {
-      setIsSimulator(true);
-      setAddress(DEFAULT_SIMULATOR_ACCOUNT);
+      setAddress(acc.address);
+      setSignerAccount(acc);
+      setIsMetaMask(false);
+      setChainId(GENLAYER_STUDIONET_CHAIN_ID);
+    } catch (e) {
+      console.error("Error creating live account:", e);
+      const acc = createAccount();
+      setAddress(acc.address);
+      setSignerAccount(acc);
     }
   };
 
-  const disconnect = () => {
-    setAddress(null);
-  };
+  const switchOrAddGenLayerNetwork = useCallback(async () => {
+    const eth = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+    if (!eth) return;
 
-  const toggleSimulator = () => {
-    if (isSimulator) {
-      connect();
-    } else {
-      setIsSimulator(true);
-      setAddress(DEFAULT_SIMULATOR_ACCOUNT);
+    try {
+      await eth.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: GENLAYER_CHAIN_HEX }],
+      });
+      setChainId(GENLAYER_STUDIONET_CHAIN_ID);
+    } catch (switchError: unknown) {
+      const err = switchError as { code?: number };
+      if (err.code === 4902) {
+        try {
+          await eth.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: GENLAYER_CHAIN_HEX,
+                chainName: "GenLayer StudioNet",
+                nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
+                rpcUrls: [RPC_ENDPOINT],
+                blockExplorerUrls: [EXPLORER_URL],
+              },
+            ],
+          });
+          setChainId(GENLAYER_STUDIONET_CHAIN_ID);
+        } catch (addError) {
+          console.error("Failed to add GenLayer network:", addError);
+        }
+      }
     }
-  };
+  }, []);
+
+  const connectMetaMask = useCallback(async () => {
+    const eth = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+    if (!eth) {
+      alert("MetaMask or Web3 wallet extension not detected. Transactions will be signed directly using your persistent GenLayer StudioNet key.");
+      return;
+    }
+
+    setConnecting(true);
+    try {
+      const accounts = (await eth.request({
+        method: "eth_requestAccounts",
+      })) as string[];
+
+      if (accounts && accounts[0]) {
+        setAddress(accounts[0]);
+        setIsMetaMask(true);
+        setProvider(eth);
+        setSignerAccount(null);
+
+        const currentChain = (await eth.request({ method: "eth_chainId" })) as string;
+        const currentChainId = parseInt(currentChain, 16);
+        setChainId(currentChainId);
+
+        if (currentChainId !== GENLAYER_STUDIONET_CHAIN_ID) {
+          await switchOrAddGenLayerNetwork();
+        }
+      }
+    } catch (err) {
+      console.error("User rejected connection:", err);
+    } finally {
+      setConnecting(false);
+    }
+  }, [switchOrAddGenLayerNetwork]);
+
+  const disconnect = useCallback(() => {
+    initLiveLocalAccount();
+  }, []);
 
   return (
     <WalletContext.Provider
       value={{
         address,
         isConnected: !!address,
-        isSimulator,
-        connect,
+        isMetaMask,
+        connecting,
+        chainId,
+        connectMetaMask,
         disconnect,
-        toggleSimulator,
+        switchOrAddGenLayerNetwork,
+        signerAccount,
+        provider,
       }}
     >
       {children}
