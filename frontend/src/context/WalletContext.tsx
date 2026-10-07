@@ -11,6 +11,7 @@ export interface WalletContextType {
   connecting: boolean;
   chainId: number | null;
   connectMetaMask: () => Promise<void>;
+  connectDirectSigner: () => void;
   disconnect: () => void;
   switchOrAddGenLayerNetwork: () => Promise<void>;
   signerAccount: unknown;
@@ -24,6 +25,7 @@ const WalletContext = createContext<WalletContextType>({
   connecting: false,
   chainId: null,
   connectMetaMask: async () => {},
+  connectDirectSigner: () => {},
   disconnect: () => {},
   switchOrAddGenLayerNetwork: async () => {},
   signerAccount: null,
@@ -31,6 +33,7 @@ const WalletContext = createContext<WalletContextType>({
 });
 
 const GENLAYER_CHAIN_HEX = `0x${GENLAYER_STUDIONET_CHAIN_ID.toString(16)}`;
+const DISCONNECTED_KEY = "lumina_wallet_manual_disconnect";
 
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [address, setAddress] = useState<string | null>(null);
@@ -54,6 +57,16 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    // Check if user manually disconnected previously
+    const wasDisconnected = localStorage.getItem(DISCONNECTED_KEY) === "true";
+    if (wasDisconnected) {
+      setAddress(null);
+      setIsMetaMask(false);
+      setSignerAccount(null);
+      setProvider(null);
+      return;
+    }
 
     const eth = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
     if (eth) {
@@ -116,7 +129,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const connectMetaMask = useCallback(async () => {
     const eth = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
     if (!eth) {
-      alert("MetaMask or Web3 wallet extension not detected. Transactions will be signed directly using your live GenLayer StudioNet key.");
+      alert("MetaMask or Web3 wallet extension not detected. Connecting direct StudioNet signer instead.");
+      connectDirectSigner();
       return;
     }
 
@@ -127,6 +141,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       })) as string[];
 
       if (accounts && accounts[0]) {
+        localStorage.removeItem(DISCONNECTED_KEY);
         setAddress(accounts[0]);
         setIsMetaMask(true);
         setProvider(eth);
@@ -147,8 +162,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [switchOrAddGenLayerNetwork]);
 
-  const disconnect = useCallback(() => {
+  const connectDirectSigner = useCallback(() => {
+    localStorage.removeItem(DISCONNECTED_KEY);
     initLiveLocalAccount();
+  }, []);
+
+  const disconnect = useCallback(() => {
+    // Explicit manual disconnect
+    localStorage.setItem(DISCONNECTED_KEY, "true");
+    setAddress(null);
+    setIsMetaMask(false);
+    setSignerAccount(null);
+    setProvider(null);
+    setChainId(null);
   }, []);
 
   return (
@@ -160,6 +186,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         connecting,
         chainId,
         connectMetaMask,
+        connectDirectSigner,
         disconnect,
         switchOrAddGenLayerNetwork,
         signerAccount,

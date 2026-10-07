@@ -1,15 +1,16 @@
 "use client";
 
 import React from "react";
-import { Shield, Activity, Users, Zap, ExternalLink, ArrowRight, CheckCircle2, Flame, Scale, Lock, Wallet } from "lucide-react";
+import { Shield, Activity, Users, Zap, ExternalLink, ArrowRight, CheckCircle2, Flame, Scale, Lock, Wallet, LogOut } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LUMINA_CONTRACT_ADDRESS, EXPLORER_URL } from "@/config/constants";
 import { useWallet } from "@/context/WalletContext";
+import { WalletControl } from "@/components/WalletControl";
 import Link from "next/link";
 
 export default function Home() {
-  const { address, isMetaMask, connectMetaMask, connecting, switchOrAddGenLayerNetwork } = useWallet();
+  const { address, isConnected, isMetaMask, disconnect } = useWallet();
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-10">
@@ -51,34 +52,21 @@ export default function Home() {
       {/* Live Wallet Connection Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-zinc-900 border border-zinc-800 text-xs">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></div>
-          <span className="text-zinc-400">Active Account:</span>
-          <span className="font-mono text-zinc-200 font-semibold">{address || "Connecting..."}</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${isMetaMask ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-purple-500/10 text-purple-300 border border-purple-500/20"}`}>
-            {isMetaMask ? "MetaMask Web3" : "Direct StudioNet Signer"}
-          </span>
+          <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? "bg-emerald-400 animate-ping" : "bg-zinc-600"}`}></div>
+          <span className="text-zinc-400">Wallet Status:</span>
+          {isConnected && address ? (
+            <>
+              <span className="font-mono text-zinc-200 font-semibold">{address}</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${isMetaMask ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-purple-500/10 text-purple-300 border border-purple-500/20"}`}>
+                {isMetaMask ? "MetaMask Web3" : "Direct StudioNet Signer"}
+              </span>
+            </>
+          ) : (
+            <span className="text-zinc-500 italic">No wallet connected</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          {!isMetaMask ? (
-            <Button
-              onClick={connectMetaMask}
-              disabled={connecting}
-              size="sm"
-              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs gap-1.5"
-            >
-              <Wallet className="w-3.5 h-3.5 text-amber-400" />
-              {connecting ? "Connecting..." : "Connect MetaMask"}
-            </Button>
-          ) : (
-            <Button
-              onClick={switchOrAddGenLayerNetwork}
-              size="sm"
-              variant="outline"
-              className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-xs"
-            >
-              StudioNet (61999) Active
-            </Button>
-          )}
+          <WalletControl />
         </div>
       </div>
 

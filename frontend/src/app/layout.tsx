@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
-import { Shield, Home, List, PlusCircle, ExternalLink, HelpCircle } from "lucide-react";
+import { Shield, Home, List, PlusCircle, ExternalLink, Activity } from "lucide-react";
 import { WalletProvider } from "@/context/WalletContext";
+import { WalletControl } from "@/components/WalletControl";
 import { LUMINA_CONTRACT_ADDRESS, EXPLORER_URL } from "@/config/constants";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -82,10 +83,27 @@ export default function RootLayout({
               </div>
             </aside>
 
-            {/* Main Content */}
-            <main className="flex-1 overflow-y-auto bg-zinc-950">
-              {children}
-            </main>
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col h-screen overflow-hidden">
+              {/* Global Persistent Top Header */}
+              <header className="h-16 flex-shrink-0 bg-zinc-900/60 backdrop-blur border-b border-zinc-800 px-8 flex items-center justify-between">
+                <div className="flex items-center gap-3 text-xs text-zinc-400">
+                  <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>StudioNet (61999)</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <WalletControl />
+                </div>
+              </header>
+
+              {/* Scrollable Page Body */}
+              <main className="flex-1 overflow-y-auto bg-zinc-950">
+                {children}
+              </main>
+            </div>
           </div>
         </WalletProvider>
       </body>
