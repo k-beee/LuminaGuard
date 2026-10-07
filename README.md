@@ -143,7 +143,7 @@ digest = hashlib.sha256(serialize_clean(decisive_payload).encode()).hexdigest()
 
 LuminaGuard includes a responsive Next.js 14 console featuring:
 - **Classy Dark Interface:** Built with custom Tailwind CSS and atomic UI primitives (zinc-950 aesthetic with emerald and amber accents).
-- **Dual Wallet Architecture:** Instant toggle between Web3 Injected MetaMask and zero-setup Simulator Account for judge evaluations.
+- **Dual Wallet Architecture:** Seamless toggle between Web3 Injected MetaMask and zero-setup Direct StudioNet Signer with instant disconnect control.
 - **Inquiries Explorer:** Real-time search, category filtering, and stage sorting.
 - **Interactive Multi-Stage Progress Modal:** Visual feedback as validators crawl sources and reach consensus.
 
