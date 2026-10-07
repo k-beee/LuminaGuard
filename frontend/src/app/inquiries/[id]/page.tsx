@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,15 +18,13 @@ import {
   Flame,
   CheckCircle2,
   ExternalLink,
-  Clock,
   Quote,
-  ArrowLeft,
-  Hash
+  ArrowLeft
 } from "lucide-react";
 import Link from "next/link";
 import { Stage, Judgement, SourceData } from "@/lib/types";
 
-export default function InquiryDetailPage() {
+function InquiryDetailContent() {
   const params = useParams();
   const id = (params?.id as string) || "INQ-00101";
 
@@ -315,5 +313,13 @@ export default function InquiryDetailPage() {
         }}
       />
     </div>
+  );
+}
+
+export default function InquiryDetailPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-zinc-500">Loading Inquiry Details...</div>}>
+      <InquiryDetailContent />
+    </Suspense>
   );
 }
