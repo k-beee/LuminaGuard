@@ -1,23 +1,51 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Inquiry } from "@/lib/types";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StageBadge, JudgementBadge, CategoryBadge } from "@/components/InquiryBadges";
-import { Search, Filter, PlusCircle, ArrowRight, ShieldCheck, Flame, Coins } from "lucide-react";
+import { getLocalLiveInquiries, fetchLiveContractInquiry } from "@/lib/genlayer";
+import { Search, Filter, PlusCircle, ArrowRight, ShieldCheck, Flame, Coins, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
-const SAMPLE_INQUIRIES: Inquiry[] = [
+const SEED_INQUIRIES: Inquiry[] = [
+  {
+    inquiry_id: "INQ-00001",
+    owner: "0x705aD6DEe2b38C73B684511fB6F6d4D6fEa11997",
+    category: "EVENT_OCCURRENCE",
+    topic: "Test Topic Live",
+    action: "Test Action",
+    target_metric: "Test Metric",
+    human_desc: "Human statement for live test verified on GenLayer StudioNet.",
+    time_context: "2026-10-01T12:00:00Z",
+    window_start: "2026-10-01T00:00:00Z",
+    window_end: "2026-10-05T23:59:59Z",
+    rule_set: "DIVERSE_SOURCES",
+    gov_domains: ["reuters.com"],
+    reg_domains: ["sec.gov"],
+    min_total: 1,
+    min_distinct: 1,
+    stage: "PREP",
+    final_judge: "",
+    created_at: new Date().toISOString(),
+    locked_at: "",
+    resolved_at: "",
+    completed_at: "",
+    source_ids: [],
+    reward_wei: "0",
+    reward_held: "0",
+    reward_sponsor: "",
+  },
   {
     inquiry_id: "INQ-00101",
     owner: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
     category: "EVENT_OCCURRENCE",
     topic: "SpaceX Starship Flight 8 Splashdown",
     action: "Intact controlled splashdown in Indian Ocean",
-    target_metric: "Intact Splashdown",
-    human_desc: "Starship Flight 8 achieved orbital speed, survived peak atmospheric heating, and landed upright before ocean impact.",
+    target_metric: "Soft Splashdown Confirmed",
+    human_desc: "Starship Flight 8 achieved orbital speed, survived peak atmospheric heating, and landed upright before soft ocean impact.",
     time_context: "2026-10-04T14:30:00Z",
     window_start: "2026-10-04T00:00:00Z",
     window_end: "2026-10-06T23:59:59Z",
@@ -64,40 +92,48 @@ const SAMPLE_INQUIRIES: Inquiry[] = [
     reward_held: "10000000000000000000",
     reward_sponsor: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
   },
-  {
-    inquiry_id: "INQ-00103",
-    owner: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-    category: "ENTITY_STATUS",
-    topic: "Global Chipmaker Merger Approval",
-    action: "Antitrust approval finalized without condition concessions",
-    target_metric: "Unconditional Clearance",
-    human_desc: "European Commission issues unconditional clearance for the semiconductor conglomerate acquisition.",
-    time_context: "2026-09-30T10:00:00Z",
-    window_start: "2026-09-30T00:00:00Z",
-    window_end: "2026-10-05T23:59:59Z",
-    rule_set: "REGULATOR_ONLY",
-    gov_domains: [],
-    reg_domains: ["ec.europa.eu"],
-    min_total: 1,
-    min_distinct: 1,
-    stage: "GATHERING",
-    final_judge: "",
-    created_at: "2026-09-30T10:30:00Z",
-    locked_at: "2026-09-30T11:00:00Z",
-    resolved_at: "",
-    completed_at: "",
-    source_ids: [],
-    reward_wei: "5000000000000000000",
-    reward_held: "5000000000000000000",
-    reward_sponsor: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-  },
 ];
 
 export default function InquiriesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStage, setFilterStage] = useState<string>("ALL");
+  const [inquiries, setInquiries] = useState<Inquiry[]>(SEED_INQUIRIES);
+  const [loading, setLoading] = useState(false);
 
-  const filtered = SAMPLE_INQUIRIES.filter((item) => {
+  const loadAll = async () => {
+    setLoading(true);
+    try {
+      const local = getLocalLiveInquiries();
+      const combined = [...local];
+      for (const s of SEED_INQUIRIES) {
+        if (!combined.some((c) => c.inquiry_id === s.inquiry_id)) {
+          combined.push(s);
+        }
+      }
+
+      // Check live state of INQ-00001
+      const onChain = await fetchLiveContractInquiry("INQ-00001");
+      if (onChain && typeof onChain.stage === "string") {
+        const idx = combined.findIndex((c) => c.inquiry_id === "INQ-00001");
+        if (idx >= 0) {
+          combined[idx].stage = onChain.stage as never;
+          if (typeof onChain.judge === "string" && onChain.judge) {
+            combined[idx].final_judge = onChain.judge as never;
+          }
+        }
+      }
+
+      setInquiries(combined);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAll();
+  }, []);
+
+  const filtered = inquiries.filter((item) => {
     const matchesSearch =
       item.topic.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.inquiry_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -119,15 +155,26 @@ export default function InquiriesPage() {
             Inquiries Explorer
           </h1>
           <p className="text-zinc-400">
-            Browse and inspect all public claims registered on LuminaGuard and GenVM.
+            Live public claims registered on LuminaGuard and verified by GenVM validators.
           </p>
         </div>
-        <Link href="/create">
-          <Button className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2">
-            <PlusCircle className="w-4 h-4" />
-            Declare Inquiry
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={loadAll}
+            disabled={loading}
+            className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 gap-1.5 text-xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh Chain
           </Button>
-        </Link>
+          <Link href="/create">
+            <Button className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 text-xs">
+              <PlusCircle className="w-4 h-4" />
+              Declare Inquiry
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}

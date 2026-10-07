@@ -4,7 +4,10 @@ import React, { useState } from "react";
 import { RuleSet } from "@/lib/types";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Lock, X, Check, ShieldAlert } from "lucide-react";
+import { useWallet } from "@/context/WalletContext";
+import { getActiveWriteClient, liveLockParameters } from "@/lib/genlayer";
+import { EXPLORER_URL } from "@/config/constants";
+import { Lock, X, Check, ShieldAlert, Loader2, ExternalLink } from "lucide-react";
 
 interface LockParametersModalProps {
   inquiryId: string;
@@ -14,25 +17,48 @@ interface LockParametersModalProps {
 }
 
 export function LockParametersModal({ inquiryId, isOpen, onClose, onSuccess }: LockParametersModalProps) {
+  const { address, provider, signerAccount } = useWallet();
   const [ruleSet, setRuleSet] = useState<RuleSet>("DIVERSE_SOURCES");
-  const [govDomains, setGovDomains] = useState("reuters.com, bloomberg.com");
-  const [regDomains, setRegDomains] = useState("sec.gov");
+  const [govDomains, setGovDomains] = useState("spacex.com, nasa.gov");
+  const [regDomains, setRegDomains] = useState("faa.gov");
   const [minTotal, setMinTotal] = useState(2);
   const [loading, setLoading] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
+    setTxHash(null);
 
     try {
-      // Simulate GenLayer transaction
-      await new Promise((r) => setTimeout(r, 1000));
-      onSuccess("GATHERING");
-      onClose();
-    } catch (err) {
+      const activeAccount = signerAccount || address;
+      const client = getActiveWriteClient(activeAccount, provider);
+
+      const govList = govDomains.split(",").map((d) => d.trim()).filter(Boolean);
+      const regList = regDomains.split(",").map((d) => d.trim()).filter(Boolean);
+
+      const result = await liveLockParameters(
+        client,
+        inquiryId,
+        ruleSet,
+        govList,
+        regList,
+        minTotal
+      );
+
+      setTxHash(result.hash);
+      setTimeout(() => {
+        onSuccess("GATHERING");
+        onClose();
+      }, 1500);
+    } catch (err: unknown) {
       console.error("Lock parameters failed:", err);
+      const errorMsg = (err as Error).message || "Transaction failed on GenLayer StudioNet";
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -53,7 +79,7 @@ export function LockParametersModal({ inquiryId, isOpen, onClose, onSuccess }: L
             <Lock className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white">Lock Inquiry Parameters</h3>
+            <h3 className="text-lg font-bold text-white">Lock Parameters on GenLayer</h3>
             <p className="text-xs text-zinc-400 font-mono">Target: {inquiryId}</p>
           </div>
         </div>
@@ -61,9 +87,30 @@ export function LockParametersModal({ inquiryId, isOpen, onClose, onSuccess }: L
         <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-300 text-xs flex gap-2">
           <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <span>
-            <strong>Irreversible Action:</strong> Once locked, no party can modify the verification policy or authorized domains. Evidence collection opens immediately.
+            <strong>Live On-Chain Action:</strong> This calls the deployed contract method <code>lock_parameters()</code>. Once confirmed, source policies and domains cannot be modified.
           </span>
         </div>
+
+        {error && (
+          <div className="p-3 mb-4 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-xs">
+            {error}
+          </div>
+        )}
+
+        {txHash && (
+          <div className="p-3 mb-4 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-xs flex items-center justify-between">
+            <span>Transaction Accepted on StudioNet!</span>
+            <a
+              href={`${EXPLORER_URL}/tx/${txHash}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1 underline font-mono text-[10px]"
+            >
+              <span>View Tx</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -127,8 +174,8 @@ export function LockParametersModal({ inquiryId, isOpen, onClose, onSuccess }: L
               disabled={loading}
               className="bg-amber-600 hover:bg-amber-500 text-white font-medium gap-2"
             >
-              <Check className="w-4 h-4" />
-              {loading ? "Locking on GenVM..." : "Lock Parameters Forever"}
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {loading ? "Confirming on StudioNet..." : "Lock Parameters Forever"}
             </Button>
           </div>
         </form>

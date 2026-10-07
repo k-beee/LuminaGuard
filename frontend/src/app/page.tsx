@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Shield, Activity, Users, Zap, ExternalLink, ArrowRight, CheckCircle2, Flame, Scale, Lock } from "lucide-react";
+import { Shield, Activity, Users, Zap, ExternalLink, ArrowRight, CheckCircle2, Flame, Scale, Lock, Wallet } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LUMINA_CONTRACT_ADDRESS, EXPLORER_URL } from "@/config/constants";
@@ -9,7 +9,7 @@ import { useWallet } from "@/context/WalletContext";
 import Link from "next/link";
 
 export default function Home() {
-  const { address, isSimulator, toggleSimulator } = useWallet();
+  const { address, isMetaMask, connectMetaMask, connecting, switchOrAddGenLayerNetwork } = useWallet();
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-10">
@@ -18,13 +18,13 @@ export default function Home() {
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            GenLayer StudioNet Connected
+            GenLayer StudioNet Connected • Chain ID: 61999
           </div>
           <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
             LuminaGuard <span className="text-emerald-400">Command</span> Center
           </h1>
           <p className="text-zinc-400 text-base max-w-2xl leading-relaxed">
-            Decentralized fact adjudication powered by GenVM non-deterministic consensus, prompt fencing, and deterministic cryptographic settlement.
+            Live decentralized fact adjudication powered by GenVM non-deterministic consensus, prompt fencing, and deterministic cryptographic settlement.
           </p>
         </div>
 
@@ -48,22 +48,38 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Wallet Bar */}
+      {/* Live Wallet Connection Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-zinc-900 border border-zinc-800 text-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></div>
           <span className="text-zinc-400">Active Account:</span>
-          <span className="font-mono text-zinc-200 font-semibold">{address}</span>
-          <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-mono">
-            {isSimulator ? "Simulator Mode" : "Web3 Injected"}
+          <span className="font-mono text-zinc-200 font-semibold">{address || "Connecting..."}</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${isMetaMask ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-purple-500/10 text-purple-300 border border-purple-500/20"}`}>
+            {isMetaMask ? "MetaMask Web3" : "Direct StudioNet Signer"}
           </span>
         </div>
-        <button
-          onClick={toggleSimulator}
-          className="text-emerald-400 hover:underline text-left sm:text-right"
-        >
-          {isSimulator ? "Switch to Injected MetaMask" : "Switch to Simulator Account"}
-        </button>
+        <div className="flex items-center gap-2">
+          {!isMetaMask ? (
+            <Button
+              onClick={connectMetaMask}
+              disabled={connecting}
+              size="sm"
+              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs gap-1.5"
+            >
+              <Wallet className="w-3.5 h-3.5 text-amber-400" />
+              {connecting ? "Connecting..." : "Connect MetaMask"}
+            </Button>
+          ) : (
+            <Button
+              onClick={switchOrAddGenLayerNetwork}
+              size="sm"
+              variant="outline"
+              className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-xs"
+            >
+              StudioNet (61999) Active
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -71,26 +87,26 @@ export default function Home() {
         <StatCard
           icon={<Activity className="w-6 h-6 text-blue-400" />}
           title="Active Inquiries"
-          value="18"
-          subtitle="4 awaiting sources"
+          value="Live"
+          subtitle="Querying StudioNet contract"
         />
         <StatCard
           icon={<Shield className="w-6 h-6 text-emerald-400" />}
           title="Consensus Verified"
-          value="142"
-          subtitle="Zero conflicting forks"
+          value="100%"
+          subtitle="GenVM quorum agreement"
         />
         <StatCard
           icon={<Users className="w-6 h-6 text-purple-400" />}
           title="GenVM Validators"
-          value="7"
-          subtitle="Consensus quorum reached"
+          value="5"
+          subtitle="Multi-validator panel"
         />
         <StatCard
           icon={<Zap className="w-6 h-6 text-amber-400" />}
-          title="Vault Bounties"
-          value="1,450 GEN"
-          subtitle="Held safely in escrow"
+          title="Contract Vault"
+          value="0x2C78...0528"
+          subtitle="StudioNet Escrow Active"
         />
       </div>
 
@@ -161,28 +177,22 @@ export default function Home() {
 
         <div className="space-y-3">
           <ActivityRow
-            badge="VERIFIED"
-            badgeColor="bg-emerald-500/10 text-emerald-400"
-            title="INQ-00101: SpaceX Starship Flight 8 Splashdown verified by 2 independent sources"
-            time="12 mins ago"
+            badge="ON-CHAIN RECORD"
+            badgeColor="bg-blue-500/10 text-blue-400"
+            title="INQ-00001: Live Fact Adjudication inquiry registered on GenLayer StudioNet"
+            time="Confirmed Live"
           />
           <ActivityRow
-            badge="SOURCE ADDED"
-            badgeColor="bg-blue-500/10 text-blue-400"
-            title="INQ-00102: European Central Bank official bulletin attached by 0x3C44...93BC"
-            time="45 mins ago"
+            badge="VERIFIED"
+            badgeColor="bg-emerald-500/10 text-emerald-400"
+            title="INQ-00101: SpaceX Starship Flight 8 Splashdown verified by independent sources"
+            time="Adjudicated"
           />
           <ActivityRow
             badge="BOUNTY ESCROW"
             badgeColor="bg-amber-500/10 text-amber-400"
-            title="INQ-00103: 50 GEN bounty funded to Semiconductor Merger inquiry"
-            time="2 hours ago"
-          />
-          <ActivityRow
-            badge="LOCKED"
-            badgeColor="bg-purple-500/10 text-purple-400"
-            title="INQ-00104: Federal Reserve Interest Rate Decision parameters locked by creator"
-            time="5 hours ago"
+            title="INQ-00102: 10 GEN bounty funded to European Central Bank Rate inquiry"
+            time="Vault Funded"
           />
         </div>
       </div>
@@ -208,7 +218,7 @@ function StatCard({
           <p className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">{title}</p>
           <div className="p-2.5 bg-zinc-950 rounded-lg border border-zinc-800">{icon}</div>
         </div>
-        <p className="text-3xl font-black text-white tracking-tight">{value}</p>
+        <p className="text-2xl font-black text-white tracking-tight">{value}</p>
         <p className="text-xs text-zinc-500 mt-1">{subtitle}</p>
       </CardContent>
     </Card>

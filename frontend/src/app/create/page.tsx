@@ -7,12 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Category } from "@/lib/types";
 import { useWallet } from "@/context/WalletContext";
-import { Shield, Sparkles, AlertCircle, CheckCircle2 } from "lucide-react";
+import { getActiveWriteClient, liveRegisterInquiry } from "@/lib/genlayer";
+import { EXPLORER_URL } from "@/config/constants";
+import { Shield, Sparkles, AlertCircle, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function CreateInquiryPage() {
   const router = useRouter();
-  const { address } = useWallet();
+  const { address, provider, signerAccount } = useWallet();
 
   const [category, setCategory] = useState<Category>("EVENT_OCCURRENCE");
   const [topic, setTopic] = useState("");
@@ -20,11 +23,11 @@ export default function CreateInquiryPage() {
   const [targetMetric, setTargetMetric] = useState("");
   const [humanDesc, setHumanDesc] = useState("");
   const [timeContext, setTimeContext] = useState("2026-10-01T12:00:00Z");
-  const [windowStart, setWindowStart] = useState("2026-09-28T00:00:00Z");
+  const [windowStart, setWindowStart] = useState("2026-10-01T00:00:00Z");
   const [windowEnd, setWindowEnd] = useState("2026-10-05T23:59:59Z");
 
   const [loading, setLoading] = useState(false);
-  const [txSuccess, setTxSuccess] = useState<string | null>(null);
+  const [txSuccess, setTxSuccess] = useState<{ id: string; hash: string } | null>(null);
   const [txError, setTxError] = useState<string | null>(null);
 
   const applyPreset = () => {
@@ -32,7 +35,7 @@ export default function CreateInquiryPage() {
     setTopic("SpaceX Starship Orbital Test Flight 8");
     setAction("Successfully achieved soft splashdown in the Indian Ocean");
     setTargetMetric("Soft Splashdown Confirmed");
-    setHumanDesc("SpaceX launched Starship Flight 8 from Starbase Texas, successfully achieving payload deploy and intact Indian Ocean ocean landing.");
+    setHumanDesc("SpaceX launched Starship Flight 8 from Starbase Texas, successfully achieving payload deploy and intact Indian Ocean landing.");
     setTimeContext("2026-10-04T14:30:00Z");
     setWindowStart("2026-10-04T00:00:00Z");
     setWindowEnd("2026-10-06T23:59:59Z");
@@ -45,13 +48,24 @@ export default function CreateInquiryPage() {
     setTxSuccess(null);
 
     try {
-      // Execute the inquiry declaration
-      await new Promise((r) => setTimeout(r, 1200)); // Simulate StudioNet mining confirmation
-      const simulatedInquiryId = `INQ-${Math.floor(10000 + Math.random() * 90000)}`;
-      setTxSuccess(simulatedInquiryId);
+      const activeAccount = signerAccount || address;
+      const client = getActiveWriteClient(activeAccount, provider);
+
+      const result = await liveRegisterInquiry(client, {
+        category,
+        topic,
+        action,
+        targetMetric,
+        humanDesc,
+        timeContext,
+        windowStart,
+        windowEnd,
+      });
+
+      setTxSuccess({ id: result.inquiryId, hash: result.hash });
     } catch (err: unknown) {
       const error = err as Error;
-      setTxError(error.message || "Failed to broadcast transaction to GenLayer");
+      setTxError(error.message || "Failed to broadcast transaction to GenLayer StudioNet");
     } finally {
       setLoading(false);
     }
@@ -66,7 +80,7 @@ export default function CreateInquiryPage() {
             Declare Fact Inquiry
           </h1>
           <p className="text-zinc-400">
-            Define an atomic, falsifiable claim structure to be frozen and adjudicated by GenVM.
+            Define an atomic, falsifiable claim structure to be frozen and adjudicated live on GenLayer StudioNet.
           </p>
         </div>
         <Button
@@ -209,21 +223,31 @@ export default function CreateInquiryPage() {
         )}
 
         {txSuccess && (
-          <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-between">
+          <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-semibold">Inquiry successfully declared on GenLayer!</p>
-                <p className="text-xs text-emerald-300/80 font-mono">ID: {txSuccess}</p>
+                <p className="text-sm font-semibold">Live Transaction Accepted on GenLayer StudioNet!</p>
+                <p className="text-xs text-emerald-300/80 font-mono">Assigned Inquiry ID: {txSuccess.id}</p>
+                <a
+                  href={`${EXPLORER_URL}/tx/${txSuccess.hash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] underline flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-mono mt-0.5"
+                >
+                  <span>Tx: {txSuccess.hash.slice(0, 16)}...</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
               </div>
             </div>
-            <Button
-              type="button"
-              onClick={() => router.push(`/inquiries`)}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs"
-            >
-              View Inquiries
-            </Button>
+            <Link href={`/inquiries`}>
+              <Button
+                type="button"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs"
+              >
+                View in Explorer
+              </Button>
+            </Link>
           </div>
         )}
 
@@ -231,9 +255,10 @@ export default function CreateInquiryPage() {
           <Button
             type="submit"
             disabled={loading}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-8"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-8 flex items-center gap-2"
           >
-            {loading ? "Broadcasting to GenVM..." : "Submit to GenLayer"}
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loading ? "Broadcasting to GenLayer..." : "Broadcast to StudioNet"}
           </Button>
         </div>
       </form>

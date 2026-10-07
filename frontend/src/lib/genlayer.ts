@@ -64,16 +64,16 @@ export async function liveRegisterInquiry(
       params.windowStart,
       params.windowEnd,
     ],
-  });
+    value: BigInt(0),
+  } as never);
 
   const receipt = await client.waitForTransactionReceipt({
     hash,
     status: "ACCEPTED",
     interval: 3000,
     retries: 40,
-  });
+  } as never);
 
-  // Extract created inquiry ID if available in receipt or construct sequential ID
   let inquiryId = `INQ-${Math.floor(10000 + Math.random() * 90000)}`;
   try {
     const leaderReceipt = (receipt as { consensus_data?: { leader_receipt?: { result?: unknown }[] } })?.consensus_data?.leader_receipt?.[0];
@@ -84,10 +84,9 @@ export async function liveRegisterInquiry(
     console.warn("Could not parse result string from receipt, using registered ID:", e);
   }
 
-  // Save to local registry so it immediately renders in the Live Explorer
   recordLiveInquiryLocally({
     inquiry_id: inquiryId,
-    owner: (receipt as { from_address?: string }).from_address || "0xYourAccount",
+    owner: (receipt as { from_address?: string })?.from_address || "0xYourAccount",
     category: params.category as never,
     topic: params.topic,
     action: params.action,
@@ -114,7 +113,7 @@ export async function liveRegisterInquiry(
   });
 
   return {
-    hash,
+    hash: hash as string,
     receipt: receipt as Record<string, unknown>,
     explorerUrl: `${EXPLORER_URL}/tx/${hash}`,
     inquiryId,
@@ -136,14 +135,15 @@ export async function liveLockParameters(
     address: LUMINA_CONTRACT_ADDRESS,
     functionName: "lock_parameters",
     args: [inquiryId, ruleSet, govDomains, regDomains, minSources],
-  });
+    value: BigInt(0),
+  } as never);
 
   const receipt = await client.waitForTransactionReceipt({
     hash,
     status: "ACCEPTED",
     interval: 3000,
     retries: 40,
-  });
+  } as never);
 
   updateLiveInquiryLocally(inquiryId, {
     stage: "GATHERING",
@@ -155,7 +155,7 @@ export async function liveLockParameters(
   });
 
   return {
-    hash,
+    hash: hash as string,
     receipt: receipt as Record<string, unknown>,
     explorerUrl: `${EXPLORER_URL}/tx/${hash}`,
   };
@@ -174,14 +174,14 @@ export async function liveDepositReward(
     functionName: "deposit_reward",
     args: [inquiryId],
     value: amountWei,
-  });
+  } as never);
 
   const receipt = await client.waitForTransactionReceipt({
     hash,
     status: "ACCEPTED",
     interval: 3000,
     retries: 40,
-  });
+  } as never);
 
   updateLiveInquiryLocally(inquiryId, {
     reward_wei: amountWei.toString(),
@@ -189,7 +189,7 @@ export async function liveDepositReward(
   });
 
   return {
-    hash,
+    hash: hash as string,
     receipt: receipt as Record<string, unknown>,
     explorerUrl: `${EXPLORER_URL}/tx/${hash}`,
   };
@@ -208,20 +208,21 @@ export async function liveAddSourceMaterial(
     address: LUMINA_CONTRACT_ADDRESS,
     functionName: "add_source_material",
     args: [inquiryId, url, note],
-  });
+    value: BigInt(0),
+  } as never);
 
   const receipt = await client.waitForTransactionReceipt({
     hash,
     status: "ACCEPTED",
     interval: 3000,
     retries: 40,
-  });
+  } as never);
 
   const sourceId = `SRC-${Math.floor(100 + Math.random() * 900)}`;
   addLiveSourceLocally(inquiryId, {
     source_id: sourceId,
     inquiry_id: inquiryId,
-    provider: (receipt as { from_address?: string }).from_address || "0xProvider",
+    provider: (receipt as { from_address?: string })?.from_address || "0xProvider",
     url,
     url_hash: url,
     context_note: note,
@@ -232,7 +233,7 @@ export async function liveAddSourceMaterial(
   });
 
   return {
-    hash,
+    hash: hash as string,
     receipt: receipt as Record<string, unknown>,
     explorerUrl: `${EXPLORER_URL}/tx/${hash}`,
     sourceId,
@@ -250,14 +251,15 @@ export async function liveResolveInquiry(
     address: LUMINA_CONTRACT_ADDRESS,
     functionName: "resolve_inquiry",
     args: [inquiryId],
-  });
+    value: BigInt(0),
+  } as never);
 
   const receipt = await client.waitForTransactionReceipt({
     hash,
     status: "ACCEPTED",
     interval: 4000,
     retries: 50,
-  });
+  } as never);
 
   let verdict: Judgement = "VERIFIED";
   try {
@@ -276,7 +278,7 @@ export async function liveResolveInquiry(
   });
 
   return {
-    hash,
+    hash: hash as string,
     receipt: receipt as Record<string, unknown>,
     explorerUrl: `${EXPLORER_URL}/tx/${hash}`,
     verdict,

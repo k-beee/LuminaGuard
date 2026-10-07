@@ -3,7 +3,10 @@
 import React, { useState } from "react";
 import { Button } from "./ui/button";
 import { Judgement } from "@/lib/types";
-import { Scale, X, Flame, CheckCircle2, Loader2, Sparkles, AlertTriangle } from "lucide-react";
+import { useWallet } from "@/context/WalletContext";
+import { getActiveWriteClient, liveResolveInquiry } from "@/lib/genlayer";
+import { EXPLORER_URL } from "@/config/constants";
+import { Scale, X, Flame, CheckCircle2, Loader2, Sparkles, ExternalLink, AlertTriangle } from "lucide-react";
 
 interface ResolveInquiryModalProps {
   inquiryId: string;
@@ -29,25 +32,44 @@ export function ResolveInquiryModal({
   onClose,
   onSuccess,
 }: ResolveInquiryModalProps) {
+  const { address, provider, signerAccount } = useWallet();
   const [running, setRunning] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [finishedVerdict, setFinishedVerdict] = useState<Judgement | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleStartAdjudication = async () => {
     setRunning(true);
     setCurrentStep(0);
+    setError(null);
 
-    for (let i = 0; i < STAGES.length; i++) {
-      setCurrentStep(i);
-      await new Promise((r) => setTimeout(r, 900));
+    // Progress animation ticker
+    const timer = setInterval(() => {
+      setCurrentStep((prev) => (prev < STAGES.length - 2 ? prev + 1 : prev));
+    }, 3000);
+
+    try {
+      const activeAccount = signerAccount || address;
+      const client = getActiveWriteClient(activeAccount, provider);
+
+      const result = await liveResolveInquiry(client, inquiryId);
+
+      clearInterval(timer);
+      setCurrentStep(STAGES.length - 1);
+      setTxHash(result.hash);
+      setFinishedVerdict(result.verdict);
+      onSuccess(result.verdict);
+    } catch (err: unknown) {
+      clearInterval(timer);
+      console.error("Adjudication consensus failed:", err);
+      const errorMsg = (err as Error).message || "GenVM consensus transaction failed";
+      setError(errorMsg);
+    } finally {
+      setRunning(false);
     }
-
-    const determinedVerdict: Judgement = "VERIFIED";
-    setFinishedVerdict(determinedVerdict);
-    setRunning(false);
-    onSuccess(determinedVerdict);
   };
 
   return (
@@ -67,15 +89,21 @@ export function ResolveInquiryModal({
             <Flame className="w-6 h-6 text-emerald-400" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white">Dragon Adjudication Engine</h3>
+            <h3 className="text-lg font-bold text-white">Live GenVM Consensus Engine</h3>
             <p className="text-xs text-zinc-400 font-mono">Inquiry: {inquiryId} ({sourceCount} sources)</p>
           </div>
         </div>
 
+        {error && (
+          <div className="p-3 mb-4 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-xs">
+            {error}
+          </div>
+        )}
+
         {!running && !finishedVerdict && (
           <div>
             <p className="text-sm text-zinc-300 mb-4">
-              Triggering this consensus round will instruct GenLayer validators to crawl all attached source URLs, run non-deterministic LLM analysis, and verify quotations against immutable rules.
+              Triggering this transaction executes <code>resolve_inquiry()</code> on GenLayer StudioNet. Validators will independently crawl attached source URLs, run non-deterministic LLM analysis, verify 5-word quote grounding, and reach consensus on decisive digests.
             </p>
 
             <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800 mb-6 text-xs text-zinc-400 space-y-2">
@@ -98,7 +126,7 @@ export function ResolveInquiryModal({
                 className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold gap-2"
               >
                 <Flame className="w-4 h-4" />
-                Ignite Consensus Round
+                Ignite Live Consensus Round
               </Button>
             </div>
           </div>
@@ -148,13 +176,24 @@ export function ResolveInquiryModal({
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="text-lg font-bold text-white">Adjudication Complete!</h4>
-              <p className="text-xs text-zinc-400 mt-1">Consensus accepted by validator panel.</p>
+              <h4 className="text-lg font-bold text-white">Consensus Accepted on StudioNet!</h4>
+              <p className="text-xs text-zinc-400 mt-1">Validators agreed on the decisive reading digest.</p>
             </div>
             <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
               <span className="text-xs text-emerald-400 uppercase tracking-widest font-bold">Outcome</span>
               <p className="text-2xl font-black text-emerald-300 mt-1">{finishedVerdict}</p>
             </div>
+            {txHash && (
+              <a
+                href={`${EXPLORER_URL}/tx/${txHash}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-emerald-400 underline flex items-center justify-center gap-1 font-mono"
+              >
+                <span>View Transaction Receipt on Explorer</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
             <Button
               type="button"
               onClick={onClose}

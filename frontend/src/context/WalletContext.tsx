@@ -40,11 +40,21 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [signerAccount, setSignerAccount] = useState<unknown>(null);
   const [provider, setProvider] = useState<unknown>(null);
 
-  // Initialize or restore account
+  const initLiveLocalAccount = () => {
+    try {
+      const acc = createAccount();
+      setAddress(acc.address);
+      setSignerAccount(acc);
+      setIsMetaMask(false);
+      setChainId(GENLAYER_STUDIONET_CHAIN_ID);
+    } catch (e) {
+      console.error("Error creating live account:", e);
+    }
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Check if user already connected MetaMask
     const eth = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
     if (eth) {
       eth.request({ method: "eth_accounts" })
@@ -68,30 +78,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       initLiveLocalAccount();
     }
   }, []);
-
-  const initLiveLocalAccount = () => {
-    try {
-      const storedKey = localStorage.getItem("lumina_live_key");
-      let acc;
-      if (storedKey) {
-        acc = createAccount(storedKey as `0x${string}`);
-      } else {
-        acc = createAccount();
-        if (acc.privateKey) {
-          localStorage.setItem("lumina_live_key", acc.privateKey);
-        }
-      }
-      setAddress(acc.address);
-      setSignerAccount(acc);
-      setIsMetaMask(false);
-      setChainId(GENLAYER_STUDIONET_CHAIN_ID);
-    } catch (e) {
-      console.error("Error creating live account:", e);
-      const acc = createAccount();
-      setAddress(acc.address);
-      setSignerAccount(acc);
-    }
-  };
 
   const switchOrAddGenLayerNetwork = useCallback(async () => {
     const eth = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
@@ -130,7 +116,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const connectMetaMask = useCallback(async () => {
     const eth = (window as unknown as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
     if (!eth) {
-      alert("MetaMask or Web3 wallet extension not detected. Transactions will be signed directly using your persistent GenLayer StudioNet key.");
+      alert("MetaMask or Web3 wallet extension not detected. Transactions will be signed directly using your live GenLayer StudioNet key.");
       return;
     }
 

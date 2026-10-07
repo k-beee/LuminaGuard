@@ -3,7 +3,10 @@
 import React, { useState } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Coins, X, Check, ArrowRight } from "lucide-react";
+import { useWallet } from "@/context/WalletContext";
+import { getActiveWriteClient, liveDepositReward } from "@/lib/genlayer";
+import { EXPLORER_URL } from "@/config/constants";
+import { Coins, X, Check, ArrowRight, Loader2, ExternalLink } from "lucide-react";
 
 interface DepositRewardModalProps {
   inquiryId: string;
@@ -13,22 +16,37 @@ interface DepositRewardModalProps {
 }
 
 export function DepositRewardModal({ inquiryId, isOpen, onClose, onSuccess }: DepositRewardModalProps) {
-  const [bountyAmount, setBountyAmount] = useState("50");
+  const { address, provider, signerAccount } = useWallet();
+  const [bountyAmount, setBountyAmount] = useState("10");
   const [loading, setLoading] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
+    setTxHash(null);
 
     try {
-      // Simulate GenLayer payable transaction
-      await new Promise((r) => setTimeout(r, 1100));
-      onSuccess(bountyAmount);
-      onClose();
-    } catch (err) {
+      const activeAccount = signerAccount || address;
+      const client = getActiveWriteClient(activeAccount, provider);
+
+      // Convert GEN to wei
+      const amountWei = BigInt(Math.floor(parseFloat(bountyAmount) * 1e18));
+      const result = await liveDepositReward(client, inquiryId, amountWei);
+
+      setTxHash(result.hash);
+      setTimeout(() => {
+        onSuccess(bountyAmount);
+        onClose();
+      }, 1500);
+    } catch (err: unknown) {
       console.error("Funding bounty failed:", err);
+      const errorMsg = (err as Error).message || "Payable transaction failed on GenLayer StudioNet";
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -49,14 +67,35 @@ export function DepositRewardModal({ inquiryId, isOpen, onClose, onSuccess }: De
             <Coins className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white">Sponsor Bounty Vault</h3>
+            <h3 className="text-lg font-bold text-white">Sponsor Bounty on StudioNet</h3>
             <p className="text-xs text-zinc-400 font-mono">Inquiry: {inquiryId}</p>
           </div>
         </div>
 
         <p className="text-sm text-zinc-400 mb-4">
-          Escrow native tokens to incentivize global researchers and community members to attach verified source evidence.
+          Escrow native GEN tokens live into the contract vault. Escrowed bounties are released to the first decisive evidence provider on finalization.
         </p>
+
+        {error && (
+          <div className="p-3 mb-4 bg-rose-500/10 border border-rose-500/20 rounded text-rose-400 text-xs">
+            {error}
+          </div>
+        )}
+
+        {txHash && (
+          <div className="p-3 mb-4 bg-emerald-500/10 border border-emerald-500/20 rounded text-emerald-400 text-xs flex items-center justify-between">
+            <span>Bounty Funded on StudioNet!</span>
+            <a
+              href={`${EXPLORER_URL}/tx/${txHash}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1 underline font-mono text-[10px]"
+            >
+              <span>View Tx</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -99,8 +138,9 @@ export function DepositRewardModal({ inquiryId, isOpen, onClose, onSuccess }: De
               disabled={loading}
               className="bg-amber-600 hover:bg-amber-500 text-white font-medium gap-2"
             >
-              {loading ? "Confirming in Wallet..." : "Fund Bounty"}
-              <ArrowRight className="w-4 h-4" />
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {loading ? "Broadcasting Payable Tx..." : "Fund Bounty"}
+              {!loading && <ArrowRight className="w-4 h-4" />}
             </Button>
           </div>
         </form>
