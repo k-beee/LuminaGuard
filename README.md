@@ -8,6 +8,8 @@
 [![Next.js 14](https://img.shields.io/badge/Frontend-Next.js%2014%20App%20Router-000000?style=for-the-badge&logo=nextdotjs)](https://github.com/k-beee/LuminaGuard)
 [![Author](https://img.shields.io/badge/Built%20By-k__bee-8b5cf6?style=for-the-badge)](https://github.com/k-beee)
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fk-beee%2FLuminaGuard&root-directory=frontend&env=NEXT_PUBLIC_CONTRACT_ADDRESS,NEXT_PUBLIC_CHAIN_ID,NEXT_PUBLIC_STUDIO_EXPLORER,NEXT_PUBLIC_RPC_URL&envDescription=GenLayer%20StudioNet%20Contract%20Configuration&envDefault=0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528,61999,https%3A%2F%2Fexplorer-studio.genlayer.com,https%3A%2F%2Fstudio.genlayer.com%2Fapi)
+
 **A trustless, anti-hallucination protocol converting raw unstructured public evidence into mathematically settled, time-bound on-chain consensus.**
 
 [Verified StudioNet Contract](https://explorer-studio.genlayer.com/address/0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528) • [GitHub Repository](https://github.com/k-beee/LuminaGuard)
@@ -137,17 +139,26 @@ digest = hashlib.sha256(serialize_clean(decisive_payload).encode()).hexdigest()
 
 ---
 
-## 💻 Frontend Command Center
+## 💻 Frontend Command Center & Vercel Deployment
 
-LuminaGuard includes a sophisticated, responsive Next.js 14 console featuring:
+LuminaGuard includes a responsive Next.js 14 console featuring:
 - **Classy Dark Interface:** Built with custom Tailwind CSS and atomic UI primitives (zinc-950 aesthetic with emerald and amber accents).
 - **Dual Wallet Architecture:** Instant toggle between Web3 Injected MetaMask and zero-setup Simulator Account for judge evaluations.
 - **Inquiries Explorer:** Real-time search, category filtering, and stage sorting.
 - **Interactive Multi-Stage Progress Modal:** Visual feedback as validators crawl sources and reach consensus.
 
+### Deploying to Vercel (Step-by-Step)
+1. **One-Click Deploy:** Click the [Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fk-beee%2FLuminaGuard&root-directory=frontend&env=NEXT_PUBLIC_CONTRACT_ADDRESS,NEXT_PUBLIC_CHAIN_ID,NEXT_PUBLIC_STUDIO_EXPLORER,NEXT_PUBLIC_RPC_URL&envDescription=GenLayer%20StudioNet%20Contract%20Configuration&envDefault=0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528,61999,https%3A%2F%2Fexplorer-studio.genlayer.com,https%3A%2F%2Fstudio.genlayer.com%2Fapi) button above.
+2. **Manual Import:**
+   - On Vercel, click **Add New...** -> **Project** -> Import `k-beee/LuminaGuard`.
+   - **Crucial Setting:** Under **Root Directory**, click **Edit** and select **`frontend`**.
+   - **Framework Preset:** Next.js (automatically detected).
+   - Click **Deploy**!
+   *(Note: The environment variables already have defaults pointing to the live StudioNet contract `0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528`, so it works out-of-the-box without extra setup).*
+
 ---
 
-## 🚀 Getting Started
+## 🚀 Local Development
 
 ### Prerequisites
 - Node.js >= 18.18
