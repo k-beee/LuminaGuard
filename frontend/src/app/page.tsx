@@ -1,58 +1,240 @@
-import { Shield, Activity, Users, Zap } from "lucide-react";
+"use client";
+
+import React from "react";
+import { Shield, Activity, Users, Zap, ExternalLink, ArrowRight, CheckCircle2, Flame, Scale, Lock } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { LUMINA_CONTRACT_ADDRESS, EXPLORER_URL } from "@/config/constants";
+import { useWallet } from "@/context/WalletContext";
+import Link from "next/link";
 
 export default function Home() {
+  const { address, isSimulator, toggleSimulator } = useWallet();
+
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="mb-10">
-        <h1 className="text-4xl font-extrabold tracking-tight text-white mb-2">LuminaGuard Command Center</h1>
-        <p className="text-zinc-400 text-lg">Monitor, verify, and resolve claims with consensus-driven AI.</p>
+    <div className="p-8 max-w-7xl mx-auto space-y-10">
+      {/* Hero Section */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-zinc-800/80">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            GenLayer StudioNet Connected
+          </div>
+          <h1 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
+            LuminaGuard <span className="text-emerald-400">Command</span> Center
+          </h1>
+          <p className="text-zinc-400 text-base max-w-2xl leading-relaxed">
+            Decentralized fact adjudication powered by GenVM non-deterministic consensus, prompt fencing, and deterministic cryptographic settlement.
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <Link href="/create">
+            <Button className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold gap-2 shadow-lg shadow-emerald-950">
+              <Zap className="w-4 h-4" />
+              Declare New Inquiry
+            </Button>
+          </Link>
+          <a
+            href={`${EXPLORER_URL}/address/${LUMINA_CONTRACT_ADDRESS}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Button variant="outline" className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 gap-2 w-full">
+              <span>Inspect Contract</span>
+              <ExternalLink className="w-4 h-4 text-emerald-400" />
+            </Button>
+          </a>
+        </div>
+      </div>
+
+      {/* Wallet Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-zinc-900 border border-zinc-800 text-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+          <span className="text-zinc-400">Active Account:</span>
+          <span className="font-mono text-zinc-200 font-semibold">{address}</span>
+          <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-mono">
+            {isSimulator ? "Simulator Mode" : "Web3 Injected"}
+          </span>
+        </div>
+        <button
+          onClick={toggleSimulator}
+          className="text-emerald-400 hover:underline text-left sm:text-right"
+        >
+          {isSimulator ? "Switch to Injected MetaMask" : "Switch to Simulator Account"}
+        </button>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-        <StatCard icon={<Activity className="w-6 h-6 text-blue-500" />} title="Active Inquiries" value="24" />
-        <StatCard icon={<Shield className="w-6 h-6 text-emerald-500" />} title="Resolved Safely" value="156" />
-        <StatCard icon={<Users className="w-6 h-6 text-purple-500" />} title="Validators" value="12" />
-        <StatCard icon={<Zap className="w-6 h-6 text-amber-500" />} title="Total Bounties" value="$12.4k" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          icon={<Activity className="w-6 h-6 text-blue-400" />}
+          title="Active Inquiries"
+          value="18"
+          subtitle="4 awaiting sources"
+        />
+        <StatCard
+          icon={<Shield className="w-6 h-6 text-emerald-400" />}
+          title="Consensus Verified"
+          value="142"
+          subtitle="Zero conflicting forks"
+        />
+        <StatCard
+          icon={<Users className="w-6 h-6 text-purple-400" />}
+          title="GenVM Validators"
+          value="7"
+          subtitle="Consensus quorum reached"
+        />
+        <StatCard
+          icon={<Zap className="w-6 h-6 text-amber-400" />}
+          title="Vault Bounties"
+          value="1,450 GEN"
+          subtitle="Held safely in escrow"
+        />
       </div>
 
-      {/* Main Panel */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8">
-        <h2 className="text-xl font-semibold mb-6 flex items-center">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 mr-3 animate-pulse"></span>
-          Live Network Activity
-        </h2>
-        <div className="space-y-4">
-          <ActivityRow type="NEW_INQUIRY" title="Global Interest Rates Shift" time="2m ago" />
-          <ActivityRow type="SOURCE_ADDED" title="Reuters API Data attached to INQ-00145" time="15m ago" />
-          <ActivityRow type="RESOLVED" title="Tech Merger Finalized (INQ-00142) → VERIFIED" time="1h ago" />
-          <ActivityRow type="BOUNTY" title="500 GL funded to INQ-00146" time="3h ago" />
+      {/* Interactive Dragon Flow Pipeline */}
+      <Card className="bg-zinc-900 border-zinc-800">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Flame className="w-5 h-5 text-emerald-400" />
+            The LuminaGuard Adjudication Pipeline
+          </CardTitle>
+          <CardDescription>
+            How unstructured web evidence becomes tamper-proof, finalized state on GenLayer.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+            <div className="p-4 rounded-lg bg-zinc-950 border border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between text-emerald-400 font-bold">
+                <span>01. Structure & Freeze</span>
+                <Lock className="w-4 h-4" />
+              </div>
+              <p className="text-zinc-400">
+                Claim is defined with subject, predicate, and target metric. Policy and authorized domains are locked permanently.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-lg bg-zinc-950 border border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between text-blue-400 font-bold">
+                <span>02. Evidence Gathering</span>
+                <Shield className="w-4 h-4" />
+              </div>
+              <p className="text-zinc-400">
+                Community attaches public HTTPS URLs. Anyone can participate and qualify for the escrow bounty.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-lg bg-zinc-950 border border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between text-purple-400 font-bold">
+                <span>03. Non-Det Consensus</span>
+                <Users className="w-4 h-4" />
+              </div>
+              <p className="text-zinc-400">
+                Validators independently crawl pages, extract quotes, enforce prompt fences, and hash decisive readings.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-lg bg-zinc-950 border border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between text-amber-400 font-bold">
+                <span>04. Deterministic Settle</span>
+                <Scale className="w-4 h-4" />
+              </div>
+              <p className="text-zinc-400">
+                Deterministic code computes VERIFIED / REFUTED. Reward releases automatically once the appeal window closes.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Feed */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-white">Recent Protocol Activity</h2>
+          <Link href="/inquiries" className="text-xs text-emerald-400 hover:underline flex items-center gap-1">
+            View All Inquiries <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        <div className="space-y-3">
+          <ActivityRow
+            badge="VERIFIED"
+            badgeColor="bg-emerald-500/10 text-emerald-400"
+            title="INQ-00101: SpaceX Starship Flight 8 Splashdown verified by 2 independent sources"
+            time="12 mins ago"
+          />
+          <ActivityRow
+            badge="SOURCE ADDED"
+            badgeColor="bg-blue-500/10 text-blue-400"
+            title="INQ-00102: European Central Bank official bulletin attached by 0x3C44...93BC"
+            time="45 mins ago"
+          />
+          <ActivityRow
+            badge="BOUNTY ESCROW"
+            badgeColor="bg-amber-500/10 text-amber-400"
+            title="INQ-00103: 50 GEN bounty funded to Semiconductor Merger inquiry"
+            time="2 hours ago"
+          />
+          <ActivityRow
+            badge="LOCKED"
+            badgeColor="bg-purple-500/10 text-purple-400"
+            title="INQ-00104: Federal Reserve Interest Rate Decision parameters locked by creator"
+            time="5 hours ago"
+          />
         </div>
       </div>
     </div>
   );
 }
 
-function StatCard({ icon, title, value }: { icon: React.ReactNode, title: string, value: string }) {
+function StatCard({
+  icon,
+  title,
+  value,
+  subtitle,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+  subtitle: string;
+}) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col items-start hover:border-zinc-700 transition-colors">
-      <div className="p-3 bg-zinc-950 rounded-lg mb-4">{icon}</div>
-      <p className="text-zinc-400 font-medium text-sm mb-1">{title}</p>
-      <p className="text-3xl font-bold text-white tracking-tight">{value}</p>
-    </div>
-  )
+    <Card className="bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-colors">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-zinc-400 text-xs font-semibold uppercase tracking-wider">{title}</p>
+          <div className="p-2.5 bg-zinc-950 rounded-lg border border-zinc-800">{icon}</div>
+        </div>
+        <p className="text-3xl font-black text-white tracking-tight">{value}</p>
+        <p className="text-xs text-zinc-500 mt-1">{subtitle}</p>
+      </CardContent>
+    </Card>
+  );
 }
 
-function ActivityRow({ type, title, time }: { type: string, title: string, time: string }) {
+function ActivityRow({
+  badge,
+  badgeColor,
+  title,
+  time,
+}: {
+  badge: string;
+  badgeColor: string;
+  title: string;
+  time: string;
+}) {
   return (
-    <div className="flex items-center justify-between p-4 bg-zinc-950/50 border border-zinc-800/50 rounded-lg">
-      <div className="flex items-center space-x-4">
-        <div className={`text-xs font-bold px-2 py-1 rounded ${type === 'RESOLVED' ? 'bg-emerald-500/10 text-emerald-500' : type === 'NEW_INQUIRY' ? 'bg-blue-500/10 text-blue-500' : 'bg-zinc-800 text-zinc-300'}`}>
-          {type}
-        </div>
-        <span className="text-zinc-200">{title}</span>
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-zinc-900 border border-zinc-800 rounded-xl">
+      <div className="flex items-center gap-3">
+        <span className={`text-[10px] font-bold px-2 py-1 rounded font-mono uppercase tracking-wider ${badgeColor}`}>
+          {badge}
+        </span>
+        <span className="text-sm text-zinc-200">{title}</span>
       </div>
-      <span className="text-zinc-500 text-sm">{time}</span>
+      <span className="text-xs text-zinc-500 font-mono whitespace-nowrap">{time}</span>
     </div>
-  )
+  );
 }
