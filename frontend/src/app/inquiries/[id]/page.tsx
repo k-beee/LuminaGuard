@@ -10,7 +10,7 @@ import { DepositRewardModal } from "@/components/DepositRewardModal";
 import { AddSourceModal } from "@/components/AddSourceModal";
 import { ResolveInquiryModal } from "@/components/ResolveInquiryModal";
 import { LUMINA_CONTRACT_ADDRESS, EXPLORER_URL } from "@/config/constants";
-import { getLocalLiveInquiries, getLocalLiveSources, fetchLiveContractInquiry } from "@/lib/genlayer";
+import { getLocalLiveInquiries, getLocalLiveSources, fetchLiveContractInquiry, fetchLiveContractEvidence } from "@/lib/genlayer";
 import {
   Shield,
   Lock,
@@ -53,7 +53,7 @@ function InquiryDetailContent() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 1. Check local registry
+      // 1. Check local registry first for fast hydration
       const localInquiries = getLocalLiveInquiries();
       const match = localInquiries.find((i) => i.inquiry_id === id);
       if (match) {
@@ -65,34 +65,23 @@ function InquiryDetailContent() {
       if (contractData) {
         setInquiry((prev) => ({
           ...prev,
-          inquiry_id: (contractData.id as string) || id,
-          topic: (contractData.topic as string) || prev.topic,
-          stage: (contractData.stage as Stage) || prev.stage,
-          final_judge: (contractData.judge as Judgement) || prev.final_judge,
-          source_ids: Array.isArray(contractData.sources) ? (contractData.sources as string[]) : prev.source_ids,
+          ...contractData,
         }));
       }
 
-      // 3. Load sources
+      // 3. Load canonical sources from deployed contract - NO hard-coded evidence
+      const contractSources = await fetchLiveContractEvidence(id);
       const localSources = getLocalLiveSources(id);
-      if (localSources.length > 0) {
-        setSources(localSources);
-      } else if (id === "INQ-00101") {
-        setSources([
-          {
-            source_id: "SRC-001",
-            inquiry_id: id,
-            provider: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-            url: "https://www.reuters.com/technology/space/spacex-starship-flight-8-landing-indian-ocean",
-            url_hash: "reuters.com/spacex-flight-8",
-            context_note: "Article explicitly quotes mission control reporting successful intact splashdown coordinates.",
-            added_at: "2026-10-04T16:00:00Z",
-            auth_level: "GENERAL_PUBLIC",
-            stance: "BACKS",
-            code: 200,
-          },
-        ]);
+
+      const mergedSources: SourceData[] = [...contractSources];
+      for (const loc of localSources) {
+        if (!mergedSources.some((s) => s.source_id === loc.source_id)) {
+          mergedSources.push(loc);
+        }
       }
+      setSources(mergedSources);
+    } catch (err) {
+      console.warn("Failed loading live inquiry detail:", err);
     } finally {
       setLoading(false);
     }
@@ -240,10 +229,16 @@ function InquiryDetailContent() {
                 </p>
               </div>
               <div className="p-3 bg-zinc-950/80 rounded-lg border border-zinc-800">
-                <span className="text-zinc-500">Settlement Dispatch:</span>
-                <p className="font-semibold text-zinc-200 mt-1">
-                  Scheduled on=&quot;finalized&quot;
-                </p>
+                <span className="text-zinc-500">Settlement Recipient:</span>
+                {inquiry.final_judge === "VERIFIED" || inquiry.final_judge === "DEBUNKED" ? (
+                  <p className="font-semibold text-emerald-300 mt-1 font-mono text-[11px] truncate" title={inquiry.decisive_submitter || inquiry.reward_sponsor}>
+                    Bounty: {inquiry.decisive_submitter || inquiry.reward_sponsor || "Decisive Submitter"}
+                  </p>
+                ) : (
+                  <p className="font-semibold text-amber-300 mt-1 font-mono text-[11px] truncate" title={inquiry.reward_sponsor}>
+                    Refund: {inquiry.reward_sponsor || "Sponsor Refund"}
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>

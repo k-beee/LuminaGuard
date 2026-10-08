@@ -7,10 +7,42 @@ import { Button } from "@/components/ui/button";
 import { LUMINA_CONTRACT_ADDRESS, EXPLORER_URL } from "@/config/constants";
 import { useWallet } from "@/context/WalletContext";
 import { WalletControl } from "@/components/WalletControl";
+import { getLocalLiveInquiries, fetchAllInquiryIds, fetchLiveContractInquiry } from "@/lib/genlayer";
+import { Inquiry } from "@/lib/types";
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   const { address, isConnected, isMetaMask, disconnect } = useWallet();
+  const [liveActivities, setLiveActivities] = useState<Inquiry[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(true);
+
+  useEffect(() => {
+    async function loadActivities() {
+      try {
+        const ids = await fetchAllInquiryIds();
+        const onChain: Inquiry[] = [];
+        for (const id of ids.slice(-5).reverse()) {
+          const inq = await fetchLiveContractInquiry(id);
+          if (inq) onChain.push(inq);
+        }
+        const local = getLocalLiveInquiries();
+        const merged = [...onChain];
+        for (const loc of local) {
+          if (!merged.some((m) => m.inquiry_id === loc.inquiry_id)) {
+            merged.push(loc);
+          }
+        }
+        setLiveActivities(merged.slice(0, 5));
+      } catch (e) {
+        console.warn("Could not load recent activities:", e);
+        setLiveActivities(getLocalLiveInquiries().slice(0, 5));
+      } finally {
+        setLoadingActivities(false);
+      }
+    }
+    loadActivities();
+  }, []);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-10">
@@ -164,24 +196,41 @@ export default function Home() {
         </div>
 
         <div className="space-y-3">
-          <ActivityRow
-            badge="ON-CHAIN RECORD"
-            badgeColor="bg-blue-500/10 text-blue-400"
-            title="INQ-00001: Live Fact Adjudication inquiry registered on GenLayer StudioNet"
-            time="Confirmed Live"
-          />
-          <ActivityRow
-            badge="VERIFIED"
-            badgeColor="bg-emerald-500/10 text-emerald-400"
-            title="INQ-00101: SpaceX Starship Flight 8 Splashdown verified by independent sources"
-            time="Adjudicated"
-          />
-          <ActivityRow
-            badge="BOUNTY ESCROW"
-            badgeColor="bg-amber-500/10 text-amber-400"
-            title="INQ-00102: 10 GEN bounty funded to European Central Bank Rate inquiry"
-            time="Vault Funded"
-          />
+          {loadingActivities ? (
+            <div className="p-6 text-center text-xs text-zinc-500 font-mono bg-zinc-900 border border-zinc-800 rounded-xl">
+              Querying GenLayer StudioNet contract state...
+            </div>
+          ) : liveActivities.length > 0 ? (
+            liveActivities.map((inq) => {
+              const isVerified = inq.final_judge === "VERIFIED";
+              const isDebunked = inq.final_judge === "DEBUNKED";
+              const badge = inq.final_judge || inq.stage;
+              const badgeColor = isVerified
+                ? "bg-emerald-500/10 text-emerald-400"
+                : isDebunked
+                ? "bg-rose-500/10 text-rose-400"
+                : inq.stage === "HAS_SOURCES"
+                ? "bg-purple-500/10 text-purple-400"
+                : "bg-blue-500/10 text-blue-400";
+              return (
+                <Link key={inq.inquiry_id} href={`/inquiries/${inq.inquiry_id}`} className="block">
+                  <ActivityRow
+                    badge={badge}
+                    badgeColor={badgeColor}
+                    title={`${inq.inquiry_id}: ${inq.topic}`}
+                    time={inq.stage === "COMPLETED" ? "Settled" : inq.stage === "AGREED" ? "Agreed" : "Active"}
+                  />
+                </Link>
+              );
+            })
+          ) : (
+            <div className="p-8 text-center bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-400 text-xs">
+              <p>No active inquiries registered on this contract yet.</p>
+              <Link href="/create" className="text-emerald-400 hover:underline mt-2 inline-block font-semibold">
+                Declare the first live inquiry &rarr;
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>

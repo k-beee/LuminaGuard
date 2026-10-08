@@ -70,6 +70,7 @@ export interface Inquiry {
   reward_wei: string;
   reward_held: string;
   reward_sponsor: string;
+  decisive_submitter?: string;
 }
 
 export interface ProtocolMetrics {

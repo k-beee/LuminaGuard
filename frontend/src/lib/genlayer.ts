@@ -74,14 +74,31 @@ export async function liveRegisterInquiry(
     retries: 40,
   } as never);
 
-  let inquiryId = `INQ-${Math.floor(10000 + Math.random() * 90000)}`;
+  // Canonical receipt or contract read for inquiryId - NO Math.random()
+  let inquiryId = "";
   try {
     const leaderReceipt = (receipt as { consensus_data?: { leader_receipt?: { result?: unknown }[] } })?.consensus_data?.leader_receipt?.[0];
     if (typeof leaderReceipt?.result === "string" && leaderReceipt.result.startsWith("INQ-")) {
       inquiryId = leaderReceipt.result;
     }
   } catch (e) {
-    console.warn("Could not parse result string from receipt, using registered ID:", e);
+    console.warn("Could not parse result string from receipt:", e);
+  }
+
+  if (!inquiryId) {
+    try {
+      const allIds = await fetchAllInquiryIds();
+      if (allIds.length > 0) {
+        inquiryId = allIds[allIds.length - 1];
+      }
+    } catch (e) {
+      console.warn("Could not read inquiry IDs from contract:", e);
+    }
+  }
+
+  if (!inquiryId) {
+    const count = await fetchContractInquiriesCount();
+    inquiryId = `INQ-${String(count || 1).padStart(5, "0")}`;
   }
 
   recordLiveInquiryLocally({
@@ -218,7 +235,33 @@ export async function liveAddSourceMaterial(
     retries: 40,
   } as never);
 
-  const sourceId = `SRC-${Math.floor(100 + Math.random() * 900)}`;
+  // Canonical receipt or contract read for sourceId - NO Math.random()
+  let sourceId = "";
+  try {
+    const leaderReceipt = (receipt as { consensus_data?: { leader_receipt?: { result?: unknown }[] } })?.consensus_data?.leader_receipt?.[0];
+    if (typeof leaderReceipt?.result === "string" && leaderReceipt.result.startsWith("SRC-")) {
+      sourceId = leaderReceipt.result;
+    }
+  } catch (e) {
+    console.warn("Could not parse sourceId from receipt:", e);
+  }
+
+  if (!sourceId) {
+    try {
+      const liveSources = await fetchLiveContractEvidence(inquiryId);
+      if (liveSources.length > 0) {
+        sourceId = liveSources[liveSources.length - 1].source_id;
+      }
+    } catch (e) {
+      console.warn("Could not fetch evidence from contract:", e);
+    }
+  }
+
+  if (!sourceId) {
+    const local = getLocalLiveSources(inquiryId);
+    sourceId = `SRC-${String(local.length + 1).padStart(5, "0")}`;
+  }
+
   addLiveSourceLocally(inquiryId, {
     source_id: sourceId,
     inquiry_id: inquiryId,
@@ -261,14 +304,28 @@ export async function liveResolveInquiry(
     retries: 50,
   } as never);
 
-  let verdict: Judgement = "VERIFIED";
+  // Canonical verdict resolution from receipt or on-chain contract state - NO default-success "VERIFIED"
+  let verdict: Judgement = "" as Judgement;
   try {
     const leaderReceipt = (receipt as { consensus_data?: { leader_receipt?: { result?: unknown }[] } })?.consensus_data?.leader_receipt?.[0];
-    if (typeof leaderReceipt?.result === "string" && ["VERIFIED", "DEBUNKED", "CLASHING", "LACKING"].includes(leaderReceipt.result)) {
+    if (typeof leaderReceipt?.result === "string" && ["VERIFIED", "DEBUNKED", "CLASHING", "LACKING", "DEAD_LINKS"].includes(leaderReceipt.result)) {
       verdict = leaderReceipt.result as Judgement;
     }
   } catch (e) {
-    console.warn("Could not extract verdict from receipt, defaulting to consensus outcome:", e);
+    console.warn("Could not extract verdict from receipt:", e);
+  }
+
+  try {
+    const contractInquiry = await fetchLiveContractInquiry(inquiryId);
+    if (contractInquiry?.final_judge) {
+      verdict = contractInquiry.final_judge as Judgement;
+    }
+  } catch (e) {
+    console.warn("Could not read contract inquiry after resolve:", e);
+  }
+
+  if (!verdict) {
+    verdict = "LACKING";
   }
 
   updateLiveInquiryLocally(inquiryId, {
@@ -286,9 +343,81 @@ export async function liveResolveInquiry(
 }
 
 /**
+ * Read all inquiry IDs directly from deployed StudioNet contract
+ */
+export async function fetchAllInquiryIds(): Promise<string[]> {
+  try {
+    const client = getReadClient();
+    const result = await client.readContract({
+      address: LUMINA_CONTRACT_ADDRESS,
+      functionName: "get_all_inquiry_ids",
+      args: [],
+    });
+    if (Array.isArray(result)) {
+      return (result as unknown[]).map((id) => String(id));
+    }
+    return [];
+  } catch (err) {
+    console.warn("Read contract get_all_inquiry_ids error:", err);
+    return [];
+  }
+}
+
+/**
+ * Read inquiry evidence items directly from deployed StudioNet contract
+ */
+export async function fetchLiveContractEvidence(inquiryId: string): Promise<SourceData[]> {
+  try {
+    const client = getReadClient();
+    const result = await client.readContract({
+      address: LUMINA_CONTRACT_ADDRESS,
+      functionName: "get_inquiry_evidence",
+      args: [inquiryId],
+    });
+    if (Array.isArray(result)) {
+      const list = result as unknown as Record<string, unknown>[];
+      return list.map((s) => ({
+        source_id: String(s.source_id || ""),
+        inquiry_id: String(s.inquiry_id || inquiryId),
+        provider: String(s.provider || ""),
+        url: String(s.url || ""),
+        url_hash: String(s.url_hash || ""),
+        context_note: String(s.context_note || ""),
+        added_at: String(s.added_at || ""),
+        auth_level: String(s.auth_level || "GENERAL_PUBLIC"),
+        stance: (s.stance as SourceData["stance"]) || "",
+        code: Number(s.code || 200),
+      }));
+    }
+    return [];
+  } catch (err) {
+    console.warn(`Read contract get_inquiry_evidence(${inquiryId}) error:`, err);
+    return [];
+  }
+}
+
+/**
+ * Read total inquiries count directly from deployed StudioNet contract
+ */
+export async function fetchContractInquiriesCount(): Promise<number> {
+  try {
+    const client = getReadClient();
+    const result = await client.readContract({
+      address: LUMINA_CONTRACT_ADDRESS,
+      functionName: "get_inquiries_count",
+      args: [],
+    });
+    return Number(result || 0);
+  } catch (err) {
+    console.warn("Read contract get_inquiries_count error:", err);
+    return 0;
+  }
+}
+
+/**
  * Read inquiry directly from deployed StudioNet contract
  */
-export async function fetchLiveContractInquiry(inquiryId: string): Promise<Record<string, unknown> | null> {
+export async function fetchLiveContractInquiry(inquiryId: string): Promise<Inquiry | null> {
   try {
     const client = getReadClient();
     const result = await client.readContract({
@@ -296,7 +425,37 @@ export async function fetchLiveContractInquiry(inquiryId: string): Promise<Recor
       functionName: "get_inquiry",
       args: [inquiryId],
     });
-    return result as Record<string, unknown>;
+    if (!result || typeof result !== "object") return null;
+    const r = result as Record<string, unknown>;
+    const rawSources = Array.isArray(r.source_ids) ? r.source_ids : Array.isArray(r.sources) ? r.sources : [];
+    return {
+      inquiry_id: String(r.inquiry_id || r.id || inquiryId),
+      owner: String(r.owner || ""),
+      category: (r.category as Inquiry["category"]) || "EVENT_OCCURRENCE",
+      topic: String(r.topic || ""),
+      action: String(r.action || ""),
+      target_metric: String(r.target_metric || ""),
+      human_desc: String(r.human_desc || ""),
+      time_context: String(r.time_context || ""),
+      window_start: String(r.window_start || ""),
+      window_end: String(r.window_end || ""),
+      rule_set: (r.rule_set as Inquiry["rule_set"]) || "",
+      gov_domains: Array.isArray(r.gov_domains) ? (r.gov_domains as unknown[]).map(String) : [],
+      reg_domains: Array.isArray(r.reg_domains) ? (r.reg_domains as unknown[]).map(String) : [],
+      min_total: Number(r.min_total || 1),
+      min_distinct: Number(r.min_distinct || 1),
+      stage: (r.stage as Inquiry["stage"]) || "PREP",
+      final_judge: (r.final_judge || r.judge || "") as Inquiry["final_judge"],
+      created_at: String(r.created_at || ""),
+      locked_at: String(r.locked_at || ""),
+      resolved_at: String(r.resolved_at || ""),
+      completed_at: String(r.completed_at || ""),
+      source_ids: (rawSources as unknown[]).map(String),
+      reward_wei: String(r.reward_wei || "0"),
+      reward_held: String(r.reward_held || "0"),
+      reward_sponsor: String(r.reward_sponsor || ""),
+      decisive_submitter: r.decisive_submitter ? String(r.decisive_submitter) : undefined,
+    };
   } catch (err) {
     console.warn(`Read contract get_inquiry(${inquiryId}) error:`, err);
     return null;
