@@ -3,16 +3,16 @@
 # 🛡️ LUMINA GUARD 🐉
 ### Decentralized Intelligent Truth & Fact Adjudication on GenLayer
 
-[![GenLayer StudioNet](https://img.shields.io/badge/GenLayer-StudioNet%20Live-10b981?style=for-the-badge&logo=ethereum)](https://explorer-studio.genlayer.com/address/0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528)
+[![GenLayer StudioNet](https://img.shields.io/badge/GenLayer-StudioNet%20Live-10b981?style=for-the-badge&logo=ethereum)](https://explorer-studio.genlayer.com/address/0x74d24c89207eBCc0e38BFbdF31B6B6e242B2B4DF)
 [![Python GenVM](https://img.shields.io/badge/Smart%20Contract-GenVM%20Python-3b82f6?style=for-the-badge&logo=python)](https://github.com/k-beee/LuminaGuard)
 [![Next.js 14](https://img.shields.io/badge/Frontend-Next.js%2014%20App%20Router-000000?style=for-the-badge&logo=nextdotjs)](https://github.com/k-beee/LuminaGuard)
 [![Author](https://img.shields.io/badge/Built%20By-k__bee-8b5cf6?style=for-the-badge)](https://github.com/k-beee)
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fk-beee%2FLuminaGuard&root-directory=frontend&env=NEXT_PUBLIC_CONTRACT_ADDRESS,NEXT_PUBLIC_CHAIN_ID,NEXT_PUBLIC_STUDIO_EXPLORER,NEXT_PUBLIC_RPC_URL&envDescription=GenLayer%20StudioNet%20Contract%20Configuration&envDefault=0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528,61999,https%3A%2F%2Fexplorer-studio.genlayer.com,https%3A%2F%2Fstudio.genlayer.com%2Fapi)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fk-beee%2FLuminaGuard&root-directory=frontend&env=NEXT_PUBLIC_CONTRACT_ADDRESS,NEXT_PUBLIC_CHAIN_ID,NEXT_PUBLIC_STUDIO_EXPLORER,NEXT_PUBLIC_RPC_URL&envDescription=GenLayer%20StudioNet%20Contract%20Configuration&envDefault=0x74d24c89207eBCc0e38BFbdF31B6B6e242B2B4DF,61999,https%3A%2F%2Fexplorer-studio.genlayer.com,https%3A%2F%2Fstudio.genlayer.com%2Fapi)
 
 **A trustless, anti-hallucination protocol converting raw unstructured public evidence into mathematically settled, time-bound on-chain consensus.**
 
-[Verified StudioNet Contract](https://explorer-studio.genlayer.com/address/0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528) • [GitHub Repository](https://github.com/k-beee/LuminaGuard)
+[Verified StudioNet Contract](https://explorer-studio.genlayer.com/address/0x74d24c89207eBCc0e38BFbdF31B6B6e242B2B4DF) • [GitHub Repository](https://github.com/k-beee/LuminaGuard)
 
 ---
 
@@ -124,8 +124,8 @@ digest = hashlib.sha256(serialize_clean(decisive_payload).encode()).hexdigest()
 
 ## 🏛️ Smart Contract Specification
 
-- **Contract Address:** [`0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528`](https://explorer-studio.genlayer.com/address/0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528)
-- **Explorer:** [GenLayer Studio Explorer](https://explorer-studio.genlayer.com/address/0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528)
+- **Contract Address:** [`0x74d24c89207eBCc0e38BFbdF31B6B6e242B2B4DF`](https://explorer-studio.genlayer.com/address/0x74d24c89207eBCc0e38BFbdF31B6B6e242B2B4DF)
+- **Explorer:** [GenLayer Studio Explorer](https://explorer-studio.genlayer.com/address/0x74d24c89207eBCc0e38BFbdF31B6B6e242B2B4DF)
 - **Language:** GenVM Python (`py-genlayer`)
 
 ### State Machine Lifecycle
@@ -148,13 +148,13 @@ LuminaGuard includes a responsive Next.js 14 console featuring:
 - **Interactive Multi-Stage Progress Modal:** Visual feedback as validators crawl sources and reach consensus.
 
 ### Deploying to Vercel (Step-by-Step)
-1. **One-Click Deploy:** Click the [Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fk-beee%2FLuminaGuard&root-directory=frontend&env=NEXT_PUBLIC_CONTRACT_ADDRESS,NEXT_PUBLIC_CHAIN_ID,NEXT_PUBLIC_STUDIO_EXPLORER,NEXT_PUBLIC_RPC_URL&envDescription=GenLayer%20StudioNet%20Contract%20Configuration&envDefault=0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528,61999,https%3A%2F%2Fexplorer-studio.genlayer.com,https%3A%2F%2Fstudio.genlayer.com%2Fapi) button above.
+1. **One-Click Deploy:** Click the [Deploy with Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fk-beee%2FLuminaGuard&root-directory=frontend&env=NEXT_PUBLIC_CONTRACT_ADDRESS,NEXT_PUBLIC_CHAIN_ID,NEXT_PUBLIC_STUDIO_EXPLORER,NEXT_PUBLIC_RPC_URL&envDescription=GenLayer%20StudioNet%20Contract%20Configuration&envDefault=0x74d24c89207eBCc0e38BFbdF31B6B6e242B2B4DF,61999,https%3A%2F%2Fexplorer-studio.genlayer.com,https%3A%2F%2Fstudio.genlayer.com%2Fapi) button above.
 2. **Manual Import:**
    - On Vercel, click **Add New...** -> **Project** -> Import `k-beee/LuminaGuard`.
    - **Crucial Setting:** Under **Root Directory**, click **Edit** and select **`frontend`**.
    - **Framework Preset:** Next.js (automatically detected).
    - Click **Deploy**!
-   *(Note: The environment variables already have defaults pointing to the live StudioNet contract `0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528`, so it works out-of-the-box without extra setup).*
+   *(Note: The environment variables already have defaults pointing to the live StudioNet contract `0x74d24c89207eBCc0e38BFbdF31B6B6e242B2B4DF`, so it works out-of-the-box without extra setup).*
 
 ---
 

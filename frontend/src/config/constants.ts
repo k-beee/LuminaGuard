@@ -1,5 +1,5 @@
 export const LUMINA_CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
-  "0x2C780dc5C4CAE3aBb17fb2A704a34B03D8ed0528") as `0x${string}`;
+  "0x74d24c89207eBCc0e38BFbdF31B6B6e242B2B4DF") as `0x${string}`;
 
 export const EXPLORER_URL =
   process.env.NEXT_PUBLIC_STUDIO_EXPLORER || "https://explorer-studio.genlayer.com";

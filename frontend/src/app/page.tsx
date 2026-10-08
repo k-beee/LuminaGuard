@@ -125,7 +125,7 @@ export default function Home() {
         <StatCard
           icon={<Zap className="w-6 h-6 text-amber-400" />}
           title="Contract Vault"
-          value="0x2C78...0528"
+          value={`${LUMINA_CONTRACT_ADDRESS.slice(0, 6)}...${LUMINA_CONTRACT_ADDRESS.slice(-4)}`}
           subtitle="StudioNet Escrow Active"
         />
       </div>
