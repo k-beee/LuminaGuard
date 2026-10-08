@@ -280,6 +280,41 @@ def process_single_source(context: dict, src_item: dict) -> dict:
         "excerpt": excerpt, "summary": limit_string(parsed.get("summary"), MAX_SNIPPET)
     }
 
+def host_matches_domains(host: str, allowed_domains) -> bool:
+    h = host.lower().strip()
+    for dom in allowed_domains:
+        d = str(dom).lower().strip()
+        if d.startswith("www."):
+            d = d[4:]
+        if h == d or h.endswith("." + d):
+            return True
+    return False
+
+def is_within_observation_window(reading: dict, src_added_at: str, w_start_sec: int, w_end_sec: int) -> bool:
+    rel_str = str(reading.get("released_at") or "").strip()
+    if rel_str:
+        rel_sec = parse_iso_to_seconds(rel_str)
+        if rel_sec is not None:
+            if rel_sec < w_start_sec or rel_sec > w_end_sec:
+                return False
+            return True
+
+    occ_str = str(reading.get("occurred_at") or "").strip()
+    if occ_str:
+        occ_sec = parse_iso_to_seconds(occ_str)
+        if occ_sec is not None:
+            if occ_sec < w_start_sec or occ_sec > w_end_sec:
+                return False
+            return True
+
+    add_sec = parse_iso_to_seconds(str(src_added_at or "").strip())
+    if add_sec is not None:
+        if add_sec < w_start_sec or add_sec > w_end_sec:
+            return False
+        return True
+
+    return True
+
 @allow_storage
 @dataclass
 class Inquiry:
@@ -308,6 +343,7 @@ class Inquiry:
     reward_wei: u256
     reward_held: u256
     reward_sponsor: str
+    decisive_submitter: str
 
 @allow_storage
 @dataclass
@@ -396,10 +432,11 @@ class LuminaGuard(gl.Contract):
             time_context=limit_string(time_ctx, 20),
             window_start=limit_string(w_start, 20), window_end=limit_string(w_end, 20),
             rule_set="", gov_domains=[], reg_domains=[],
-            min_total=u32(1), min_distinct=u32(0),
+            min_total=u32(1), min_distinct=u32(1),
             stage=STAGE_PREP, final_judge="", created_at=now, locked_at="",
             resolved_at="", completed_at="", source_ids=[],
-            reward_wei=u256(0), reward_held=u256(0), reward_sponsor=""
+            reward_wei=u256(0), reward_held=u256(0), reward_sponsor="",
+            decisive_submitter=""
         )
         self.inquiry_list.append(new_id)
         return new_id
@@ -427,7 +464,15 @@ class LuminaGuard(gl.Contract):
         inq.rule_set = r
         for d in g: inq.gov_domains.append(d)
         for d in rd: inq.reg_domains.append(d)
-        inq.min_total = u32(max(1, int(m_tot)))
+        
+        parsed_min = max(1, int(m_tot))
+        if r == RULE_DIVERSE_SOURCES:
+            inq.min_total = u32(max(2, parsed_min))
+            inq.min_distinct = u32(max(2, min(int(inq.min_total), 2)))
+        else:
+            inq.min_total = u32(parsed_min)
+            inq.min_distinct = u32(1)
+
         inq.locked_at = self._curr_time()
         inq.stage = STAGE_GATHERING
         return inq.stage
@@ -505,20 +550,99 @@ class LuminaGuard(gl.Contract):
         payload = self._execute_consensus(ctx, s_list)
         if not isinstance(payload, dict): abort_exec("Consensus failed", "[LLM_ERROR]")
         
-        backs = 0
-        denies = 0
-        for r in payload.get("readings", []):
-            src_record = self.sources[r["id"]]
-            src_record.stance = r["stance"]
-            src_record.code = u32(r["code"])
-            if r["stance"] == STANCE_BACKS: backs += 1
-            if r["stance"] == STANCE_DENIES: denies += 1
-            
-        if backs > 0 and denies == 0: inq.final_judge = JUDGE_VERIFIED
-        elif denies > 0 and backs == 0: inq.final_judge = JUDGE_DEBUNKED
-        elif backs > 0 and denies > 0: inq.final_judge = JUDGE_CLASHING
-        else: inq.final_judge = JUDGE_LACKING
+        w_start_sec = parse_iso_to_seconds(inq.window_start)
+        w_end_sec = parse_iso_to_seconds(inq.window_end)
         
+        gov_domains_list = [str(d) for d in inq.gov_domains]
+        reg_domains_list = [str(d) for d in inq.reg_domains]
+        
+        qualifying_sources = []
+        distinct_domains = set()
+        has_primary = False
+        has_support = False
+        all_dead = True
+        
+        readings_map = {r["id"]: r for r in payload.get("readings", [])}
+        
+        for s_id in inq.source_ids:
+            s_id_str = str(s_id)
+            src_record = self.sources[s_id_str]
+            r = readings_map.get(s_id_str, {"active": False, "code": 0, "stance": STANCE_QUIET})
+            
+            src_record.code = u32(r.get("code", 0))
+            is_active = bool(r.get("active", False))
+            raw_stance = r.get("stance", STANCE_QUIET)
+            
+            if is_active:
+                all_dead = False
+                
+            host = extract_base_host(src_record.url)
+            
+            is_gov = host_matches_domains(host, gov_domains_list)
+            is_reg = host_matches_domains(host, reg_domains_list)
+            if is_gov:
+                src_record.auth_level = AUTH_GOV
+            elif is_reg:
+                src_record.auth_level = AUTH_REG
+            else:
+                src_record.auth_level = AUTH_GEN
+                
+            in_window = True
+            if w_start_sec is not None and w_end_sec is not None:
+                in_window = is_within_observation_window(r, src_record.added_at, w_start_sec, w_end_sec)
+                
+            domain_allowed = True
+            if inq.rule_set == RULE_STRICT_OFFICIAL:
+                domain_allowed = is_gov
+            elif inq.rule_set == RULE_REGULATOR_ONLY:
+                domain_allowed = is_reg
+                
+            if is_active and in_window and domain_allowed and raw_stance in (STANCE_BACKS, STANCE_DENIES):
+                src_record.stance = raw_stance
+                qualifying_sources.append(src_record)
+                distinct_domains.add(host)
+                if is_gov or is_reg:
+                    has_primary = True
+                else:
+                    has_support = True
+            else:
+                src_record.stance = STANCE_QUIET
+
+        if all_dead and len(inq.source_ids) > 0:
+            inq.final_judge = JUDGE_DEAD_LINKS
+            inq.decisive_submitter = ""
+        else:
+            min_tot = int(inq.min_total)
+            min_dist = int(inq.min_distinct)
+            
+            rule_passed = True
+            if inq.rule_set == RULE_DIVERSE_SOURCES and len(distinct_domains) < max(2, min_dist):
+                rule_passed = False
+            elif inq.rule_set == RULE_PRIMARY_AND_SUPPORT and (not has_primary or not has_support):
+                rule_passed = False
+                
+            if len(qualifying_sources) < min_tot or not rule_passed:
+                inq.final_judge = JUDGE_LACKING
+                inq.decisive_submitter = ""
+            else:
+                backs = sum(1 for s in qualifying_sources if s.stance == STANCE_BACKS)
+                denies = sum(1 for s in qualifying_sources if s.stance == STANCE_DENIES)
+                
+                if backs > 0 and denies == 0:
+                    inq.final_judge = JUDGE_VERIFIED
+                    first_backing = next((s for s in qualifying_sources if s.stance == STANCE_BACKS), None)
+                    inq.decisive_submitter = first_backing.provider if first_backing else ""
+                elif denies > 0 and backs == 0:
+                    inq.final_judge = JUDGE_DEBUNKED
+                    first_denying = next((s for s in qualifying_sources if s.stance == STANCE_DENIES), None)
+                    inq.decisive_submitter = first_denying.provider if first_denying else ""
+                elif backs > 0 and denies > 0:
+                    inq.final_judge = JUDGE_CLASHING
+                    inq.decisive_submitter = ""
+                else:
+                    inq.final_judge = JUDGE_LACKING
+                    inq.decisive_submitter = ""
+
         inq.stage = STAGE_AGREED
         inq.resolved_at = self._curr_time()
         
@@ -535,7 +659,11 @@ class LuminaGuard(gl.Contract):
         amt = int(inq.reward_held)
         if amt <= 0: abort_exec("No funds")
         
-        payee = inq.reward_sponsor
+        if inq.final_judge in (JUDGE_VERIFIED, JUDGE_DEBUNKED) and inq.decisive_submitter:
+            payee = inq.decisive_submitter
+        else:
+            payee = inq.reward_sponsor
+
         inq.reward_held = u256(0)
         self.vault_balance = u256(int(self.vault_balance) - amt)
         inq.stage = STAGE_COMPLETED
@@ -548,9 +676,62 @@ class LuminaGuard(gl.Contract):
     def get_inquiry(self, i_id: str) -> dict:
         inq = self._get_inquiry(i_id)
         return {
+            "inquiry_id": inq.inquiry_id,
             "id": inq.inquiry_id,
+            "owner": inq.owner,
+            "category": inq.category,
             "topic": inq.topic,
-            "judge": inq.final_judge,
+            "action": inq.action,
+            "target_metric": inq.target_metric,
+            "human_desc": inq.human_desc,
+            "time_context": inq.time_context,
+            "window_start": inq.window_start,
+            "window_end": inq.window_end,
+            "rule_set": inq.rule_set,
+            "gov_domains": [str(d) for d in inq.gov_domains],
+            "reg_domains": [str(d) for d in inq.reg_domains],
+            "min_total": int(inq.min_total),
+            "min_distinct": int(inq.min_distinct),
             "stage": inq.stage,
-            "sources": [str(x) for x in inq.source_ids]
+            "final_judge": inq.final_judge,
+            "judge": inq.final_judge,
+            "created_at": inq.created_at,
+            "locked_at": inq.locked_at,
+            "resolved_at": inq.resolved_at,
+            "completed_at": inq.completed_at,
+            "source_ids": [str(x) for x in inq.source_ids],
+            "sources": [str(x) for x in inq.source_ids],
+            "reward_wei": str(inq.reward_wei),
+            "reward_held": str(inq.reward_held),
+            "reward_sponsor": inq.reward_sponsor,
+            "decisive_submitter": inq.decisive_submitter
         }
+
+    @gl.public.view
+    def get_inquiry_evidence(self, i_id: str) -> list:
+        inq = self._get_inquiry(i_id)
+        res = []
+        for s_id in inq.source_ids:
+            s = self.sources.get(str(s_id))
+            if s is not None:
+                res.append({
+                    "source_id": s.source_id,
+                    "inquiry_id": s.inquiry_id,
+                    "provider": s.provider,
+                    "url": s.url,
+                    "url_hash": s.url_hash,
+                    "context_note": s.context_note,
+                    "added_at": s.added_at,
+                    "auth_level": s.auth_level,
+                    "stance": s.stance,
+                    "code": int(s.code)
+                })
+        return res
+
+    @gl.public.view
+    def get_all_inquiry_ids(self) -> list:
+        return [str(x) for x in self.inquiry_list]
+
+    @gl.public.view
+    def get_inquiries_count(self) -> int:
+        return int(self.i_count)
