@@ -171,11 +171,17 @@ git clone https://github.com/k-beee/LuminaGuard.git
 cd LuminaGuard
 ```
 
-### 2. Run Contract Unit Tests
+### 2. Run Contract-Level Test Suite
 ```bash
 python3 contracts/test_lumina_guard.py
 ```
-*Output: 5 passing tests verifying URL normalization, quote grounding, and prompt fencing.*
+*Output: 16 passing contract-level & unit tests validating:*
+- *Locked policy enforcement (`STRICT_OFFICIAL`, `REGULATOR_ONLY`, `DIVERSE_SOURCES`)*
+- *Authority domains qualification (`gov_domains`, `reg_domains`, subdomain matching)*
+- *Observation window boundaries (`window_start` / `window_end` filtering)*
+- *Minimum source count thresholds (`min_total` enforcement)*
+- *Escrow settlement payouts to decisive submitters on `VERIFIED`/`DEBUNKED` vs refunds to sponsors on `CLASHING`/`LACKING`*
+- *Canonical contract read views (`get_inquiry`, `get_inquiry_evidence`, `get_all_inquiry_ids`)*
 
 ### 3. Run Frontend
 ```bash
