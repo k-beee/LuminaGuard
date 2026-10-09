@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StageBadge, JudgementBadge, CategoryBadge } from "@/components/InquiryBadges";
-import { getLocalLiveInquiries, fetchAllInquiryIds, fetchLiveContractInquiry } from "@/lib/genlayer";
+import { fetchAllInquiryIds, fetchLiveContractInquiry } from "@/lib/genlayer";
 import { Search, Filter, PlusCircle, ArrowRight, ShieldCheck, Flame, Coins, RefreshCw, Loader2 } from "lucide-react";
 import Link from "next/link";
 
@@ -19,7 +19,7 @@ export default function InquiriesPage() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      // 1. Fetch canonical inquiry IDs directly from contract
+      // Strictly canonical: fetch inquiry IDs and records directly from deployed contract
       const onChainIds = await fetchAllInquiryIds();
       const onChainInquiries: Inquiry[] = [];
 
@@ -30,19 +30,10 @@ export default function InquiriesPage() {
         }
       }
 
-      // 2. Merge with locally submitted inquiries (if any not yet indexed on chain)
-      const local = getLocalLiveInquiries();
-      const combined = [...onChainInquiries];
-      for (const loc of local) {
-        if (!combined.some((c) => c.inquiry_id === loc.inquiry_id)) {
-          combined.push(loc);
-        }
-      }
-
-      setInquiries(combined);
+      setInquiries(onChainInquiries);
     } catch (err) {
       console.warn("Failed loading live inquiries from contract:", err);
-      setInquiries(getLocalLiveInquiries());
+      setInquiries([]);
     } finally {
       setLoading(false);
     }

@@ -97,37 +97,8 @@ export async function liveRegisterInquiry(
   }
 
   if (!inquiryId) {
-    const count = await fetchContractInquiriesCount();
-    inquiryId = `INQ-${String(count || 1).padStart(5, "0")}`;
+    throw new Error("Unable to obtain canonical inquiry ID from on-chain transaction receipt or contract read.");
   }
-
-  recordLiveInquiryLocally({
-    inquiry_id: inquiryId,
-    owner: (receipt as { from_address?: string })?.from_address || "0xYourAccount",
-    category: params.category as never,
-    topic: params.topic,
-    action: params.action,
-    target_metric: params.targetMetric,
-    human_desc: params.humanDesc,
-    time_context: params.timeContext,
-    window_start: params.windowStart,
-    window_end: params.windowEnd,
-    rule_set: "",
-    gov_domains: [],
-    reg_domains: [],
-    min_total: 1,
-    min_distinct: 0,
-    stage: "PREP",
-    final_judge: "",
-    created_at: new Date().toISOString(),
-    locked_at: "",
-    resolved_at: "",
-    completed_at: "",
-    source_ids: [],
-    reward_wei: "0",
-    reward_held: "0",
-    reward_sponsor: "",
-  });
 
   return {
     hash: hash as string,
@@ -162,15 +133,6 @@ export async function liveLockParameters(
     retries: 40,
   } as never);
 
-  updateLiveInquiryLocally(inquiryId, {
-    stage: "GATHERING",
-    rule_set: ruleSet as never,
-    gov_domains: govDomains,
-    reg_domains: regDomains,
-    min_total: minSources,
-    locked_at: new Date().toISOString(),
-  });
-
   return {
     hash: hash as string,
     receipt: receipt as Record<string, unknown>,
@@ -199,11 +161,6 @@ export async function liveDepositReward(
     interval: 3000,
     retries: 40,
   } as never);
-
-  updateLiveInquiryLocally(inquiryId, {
-    reward_wei: amountWei.toString(),
-    reward_held: amountWei.toString(),
-  });
 
   return {
     hash: hash as string,
@@ -235,7 +192,7 @@ export async function liveAddSourceMaterial(
     retries: 40,
   } as never);
 
-  // Canonical receipt or contract read for sourceId - NO Math.random()
+  // Canonical receipt or contract read for sourceId - strictly canonical, no fabricated fallbacks
   let sourceId = "";
   try {
     const leaderReceipt = (receipt as { consensus_data?: { leader_receipt?: { result?: unknown }[] } })?.consensus_data?.leader_receipt?.[0];
@@ -258,22 +215,8 @@ export async function liveAddSourceMaterial(
   }
 
   if (!sourceId) {
-    const local = getLocalLiveSources(inquiryId);
-    sourceId = `SRC-${String(local.length + 1).padStart(5, "0")}`;
+    throw new Error("Unable to obtain canonical source ID from on-chain transaction receipt or contract read.");
   }
-
-  addLiveSourceLocally(inquiryId, {
-    source_id: sourceId,
-    inquiry_id: inquiryId,
-    provider: (receipt as { from_address?: string })?.from_address || "0xProvider",
-    url,
-    url_hash: url,
-    context_note: note,
-    added_at: new Date().toISOString(),
-    auth_level: "GENERAL_PUBLIC",
-    stance: "BACKS",
-    code: 200,
-  });
 
   return {
     hash: hash as string,
@@ -304,7 +247,7 @@ export async function liveResolveInquiry(
     retries: 50,
   } as never);
 
-  // Canonical verdict resolution from receipt or on-chain contract state - NO default-success "VERIFIED"
+  // Canonical verdict resolution from receipt or on-chain contract state - strictly canonical
   let verdict: Judgement = "" as Judgement;
   try {
     const leaderReceipt = (receipt as { consensus_data?: { leader_receipt?: { result?: unknown }[] } })?.consensus_data?.leader_receipt?.[0];
@@ -315,24 +258,20 @@ export async function liveResolveInquiry(
     console.warn("Could not extract verdict from receipt:", e);
   }
 
-  try {
-    const contractInquiry = await fetchLiveContractInquiry(inquiryId);
-    if (contractInquiry?.final_judge) {
-      verdict = contractInquiry.final_judge as Judgement;
+  if (!verdict) {
+    try {
+      const contractInquiry = await fetchLiveContractInquiry(inquiryId);
+      if (contractInquiry?.final_judge) {
+        verdict = contractInquiry.final_judge as Judgement;
+      }
+    } catch (e) {
+      console.warn("Could not read contract inquiry after resolve:", e);
     }
-  } catch (e) {
-    console.warn("Could not read contract inquiry after resolve:", e);
   }
 
   if (!verdict) {
-    verdict = "LACKING";
+    throw new Error("Unable to obtain canonical consensus verdict from on-chain transaction receipt or contract read.");
   }
-
-  updateLiveInquiryLocally(inquiryId, {
-    stage: "AGREED",
-    final_judge: verdict,
-    resolved_at: new Date().toISOString(),
-  });
 
   return {
     hash: hash as string,
@@ -384,9 +323,9 @@ export async function fetchLiveContractEvidence(inquiryId: string): Promise<Sour
         url_hash: String(s.url_hash || ""),
         context_note: String(s.context_note || ""),
         added_at: String(s.added_at || ""),
-        auth_level: String(s.auth_level || "GENERAL_PUBLIC"),
+        auth_level: String(s.auth_level ?? ""),
         stance: (s.stance as SourceData["stance"]) || "",
-        code: Number(s.code || 200),
+        code: typeof s.code === "number" ? s.code : (s.code !== undefined && s.code !== null ? Number(s.code) : 0),
       }));
     }
     return [];
@@ -460,63 +399,4 @@ export async function fetchLiveContractInquiry(inquiryId: string): Promise<Inqui
     console.warn(`Read contract get_inquiry(${inquiryId}) error:`, err);
     return null;
   }
-}
-
-// Local persistence helpers to guarantee instant, seamless UI responsiveness across tabs
-const STORAGE_INQUIRIES_KEY = "lumina_live_inquiries";
-const STORAGE_SOURCES_KEY = "lumina_live_sources";
-
-export function getLocalLiveInquiries(): Inquiry[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_INQUIRIES_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-export function recordLiveInquiryLocally(item: Inquiry) {
-  if (typeof window === "undefined") return;
-  const current = getLocalLiveInquiries();
-  const exists = current.findIndex((x) => x.inquiry_id === item.inquiry_id);
-  if (exists >= 0) {
-    current[exists] = item;
-  } else {
-    current.unshift(item);
-  }
-  localStorage.setItem(STORAGE_INQUIRIES_KEY, JSON.stringify(current));
-}
-
-export function updateLiveInquiryLocally(inquiryId: string, updates: Partial<Inquiry>) {
-  if (typeof window === "undefined") return;
-  const current = getLocalLiveInquiries();
-  const idx = current.findIndex((x) => x.inquiry_id === inquiryId);
-  if (idx >= 0) {
-    current[idx] = { ...current[idx], ...updates };
-    localStorage.setItem(STORAGE_INQUIRIES_KEY, JSON.stringify(current));
-  }
-}
-
-export function getLocalLiveSources(inquiryId: string): SourceData[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(`${STORAGE_SOURCES_KEY}_${inquiryId}`);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-export function addLiveSourceLocally(inquiryId: string, src: SourceData) {
-  if (typeof window === "undefined") return;
-  const current = getLocalLiveSources(inquiryId);
-  current.push(src);
-  localStorage.setItem(`${STORAGE_SOURCES_KEY}_${inquiryId}`, JSON.stringify(current));
-  updateLiveInquiryLocally(inquiryId, {
-    stage: "HAS_SOURCES",
-    source_ids: current.map((s) => s.source_id),
-  });
 }

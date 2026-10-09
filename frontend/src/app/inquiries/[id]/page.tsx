@@ -10,7 +10,7 @@ import { DepositRewardModal } from "@/components/DepositRewardModal";
 import { AddSourceModal } from "@/components/AddSourceModal";
 import { ResolveInquiryModal } from "@/components/ResolveInquiryModal";
 import { LUMINA_CONTRACT_ADDRESS, EXPLORER_URL } from "@/config/constants";
-import { getLocalLiveInquiries, getLocalLiveSources, fetchLiveContractInquiry, fetchLiveContractEvidence } from "@/lib/genlayer";
+import { fetchLiveContractInquiry, fetchLiveContractEvidence } from "@/lib/genlayer";
 import {
   Shield,
   Lock,
@@ -21,28 +21,20 @@ import {
   ExternalLink,
   Quote,
   ArrowLeft,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from "lucide-react";
 import Link from "next/link";
-import { Stage, Judgement, SourceData, Inquiry } from "@/lib/types";
+import { SourceData, Inquiry } from "@/lib/types";
 
 function InquiryDetailContent() {
   const params = useParams();
-  const id = (params?.id as string) || "INQ-00001";
+  const id = params?.id as string;
 
-  const [inquiry, setInquiry] = useState<Partial<Inquiry>>({
-    inquiry_id: id,
-    topic: "Live Fact Adjudication Claim",
-    human_desc: "Synchronizing state directly with GenLayer StudioNet...",
-    stage: "PREP",
-    final_judge: "",
-    reward_wei: "0",
-    target_metric: "Pending Verification",
-    source_ids: [],
-  });
-
+  const [inquiry, setInquiry] = useState<Inquiry | null>(null);
   const [sources, setSources] = useState<SourceData[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Modals
   const [isLockOpen, setIsLockOpen] = useState(false);
@@ -51,37 +43,24 @@ function InquiryDetailContent() {
   const [isResolveOpen, setIsResolveOpen] = useState(false);
 
   const loadData = async () => {
+    if (!id) return;
     setLoading(true);
+    setError(null);
     try {
-      // 1. Check local registry first for fast hydration
-      const localInquiries = getLocalLiveInquiries();
-      const match = localInquiries.find((i) => i.inquiry_id === id);
-      if (match) {
-        setInquiry(match);
-      }
-
-      // 2. Fetch directly from deployed contract on StudioNet
+      // Direct canonical on-chain query from deployed contract
       const contractData = await fetchLiveContractInquiry(id);
       if (contractData) {
-        setInquiry((prev) => ({
-          ...prev,
-          ...contractData,
-        }));
+        setInquiry(contractData);
+      } else {
+        setInquiry(null);
       }
 
-      // 3. Load canonical sources from deployed contract - NO hard-coded evidence
+      // Direct canonical source evidence read from deployed contract
       const contractSources = await fetchLiveContractEvidence(id);
-      const localSources = getLocalLiveSources(id);
-
-      const mergedSources: SourceData[] = [...contractSources];
-      for (const loc of localSources) {
-        if (!mergedSources.some((s) => s.source_id === loc.source_id)) {
-          mergedSources.push(loc);
-        }
-      }
-      setSources(mergedSources);
+      setSources(contractSources);
     } catch (err) {
       console.warn("Failed loading live inquiry detail:", err);
+      setError("Unable to retrieve inquiry from GenLayer StudioNet.");
     } finally {
       setLoading(false);
     }
@@ -90,6 +69,50 @@ function InquiryDetailContent() {
   useEffect(() => {
     loadData();
   }, [id]);
+
+  if (loading && !inquiry) {
+    return (
+      <div className="p-8 max-w-6xl mx-auto space-y-8">
+        <Link href="/inquiries" className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white">
+          <ArrowLeft className="w-4 h-4" />
+          Back to Explorer
+        </Link>
+        <div className="p-16 text-center bg-zinc-900 border border-zinc-800 rounded-xl space-y-3">
+          <RefreshCw className="w-8 h-8 animate-spin text-emerald-400 mx-auto" />
+          <h2 className="text-lg font-bold text-white">Querying GenLayer StudioNet</h2>
+          <p className="text-sm text-zinc-400">Loading canonical record for {id}...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!inquiry) {
+    return (
+      <div className="p-8 max-w-6xl mx-auto space-y-8">
+        <Link href="/inquiries" className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white">
+          <ArrowLeft className="w-4 h-4" />
+          Back to Explorer
+        </Link>
+        <div className="p-16 text-center bg-zinc-900 border border-zinc-800 rounded-xl space-y-4">
+          <div className="inline-flex p-3 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Inquiry Not Found on Chain</h2>
+          <p className="text-sm text-zinc-400 max-w-md mx-auto">
+            The canonical inquiry ID <code className="text-zinc-200 font-mono bg-zinc-950 px-2 py-0.5 rounded border border-zinc-800">{id}</code> was not found on the deployed LuminaGuard smart contract.
+          </p>
+          {error && <p className="text-xs text-rose-400">{error}</p>}
+          <div className="pt-2">
+            <Link href="/inquiries">
+              <Button variant="outline" className="border-zinc-700 text-xs">
+                View All On-Chain Inquiries
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const bountyGEN = (Number(inquiry.reward_wei || "0") / 1e18).toFixed(0);
 
@@ -132,8 +155,8 @@ function InquiryDetailContent() {
               <span className="font-mono text-xs font-bold text-zinc-300 bg-zinc-950 px-2.5 py-1 rounded border border-zinc-800">
                 {inquiry.inquiry_id}
               </span>
-              <CategoryBadge category={inquiry.category || "EVENT_OCCURRENCE"} />
-              <StageBadge stage={inquiry.stage || "PREP"} />
+              <CategoryBadge category={inquiry.category} />
+              <StageBadge stage={inquiry.stage} />
             </div>
 
             <h1 className="text-3xl font-extrabold text-white tracking-tight">
@@ -294,7 +317,9 @@ function InquiryDetailContent() {
                       </a>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-500 font-mono">HTTP {src.code}</span>
+                      <span className="text-xs text-zinc-500 font-mono">
+                        {src.code > 0 ? `HTTP ${src.code}` : "Awaiting HTTP Crawl"}
+                      </span>
                       <StanceBadge stance={src.stance} />
                     </div>
                   </div>
@@ -307,8 +332,8 @@ function InquiryDetailContent() {
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-1">
-                    <span>Provider: {src.provider.slice(0, 10)}...</span>
-                    <span>Registered: {new Date(src.added_at).toLocaleString()}</span>
+                    <span>Provider: {src.provider ? `${src.provider.slice(0, 10)}...` : "Unknown"}</span>
+                    <span>Registered: {src.added_at ? new Date(src.added_at).toLocaleString() : "Pending"}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -319,28 +344,28 @@ function InquiryDetailContent() {
 
       {/* Modals */}
       <LockParametersModal
-        inquiryId={inquiry.inquiry_id || id}
+        inquiryId={inquiry.inquiry_id}
         isOpen={isLockOpen}
         onClose={() => setIsLockOpen(false)}
         onSuccess={() => loadData()}
       />
 
       <DepositRewardModal
-        inquiryId={inquiry.inquiry_id || id}
+        inquiryId={inquiry.inquiry_id}
         isOpen={isDepositOpen}
         onClose={() => setIsDepositOpen(false)}
         onSuccess={() => loadData()}
       />
 
       <AddSourceModal
-        inquiryId={inquiry.inquiry_id || id}
+        inquiryId={inquiry.inquiry_id}
         isOpen={isAddSourceOpen}
         onClose={() => setIsAddSourceOpen(false)}
         onSuccess={() => loadData()}
       />
 
       <ResolveInquiryModal
-        inquiryId={inquiry.inquiry_id || id}
+        inquiryId={inquiry.inquiry_id}
         sourceCount={sources.length}
         isOpen={isResolveOpen}
         onClose={() => setIsResolveOpen(false)}

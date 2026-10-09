@@ -83,7 +83,7 @@ export function StanceBadge({ stance }: { stance: Stance | "" }) {
     case "QUIET":
       return <span className="text-zinc-400 font-medium bg-zinc-800 px-2 py-0.5 rounded text-xs">SILENT</span>;
     default:
-      return <span className="text-zinc-600 text-xs">-</span>;
+      return <span className="text-zinc-500 text-xs italic bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">PENDING CONSENSUS</span>;
   }
 }
 

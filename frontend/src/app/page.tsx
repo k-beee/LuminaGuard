@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { LUMINA_CONTRACT_ADDRESS, EXPLORER_URL } from "@/config/constants";
 import { useWallet } from "@/context/WalletContext";
 import { WalletControl } from "@/components/WalletControl";
-import { getLocalLiveInquiries, fetchAllInquiryIds, fetchLiveContractInquiry } from "@/lib/genlayer";
+import { fetchAllInquiryIds, fetchLiveContractInquiry } from "@/lib/genlayer";
 import { Inquiry } from "@/lib/types";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -26,17 +26,10 @@ export default function Home() {
           const inq = await fetchLiveContractInquiry(id);
           if (inq) onChain.push(inq);
         }
-        const local = getLocalLiveInquiries();
-        const merged = [...onChain];
-        for (const loc of local) {
-          if (!merged.some((m) => m.inquiry_id === loc.inquiry_id)) {
-            merged.push(loc);
-          }
-        }
-        setLiveActivities(merged.slice(0, 5));
+        setLiveActivities(onChain.slice(0, 5));
       } catch (e) {
         console.warn("Could not load recent activities:", e);
-        setLiveActivities(getLocalLiveInquiries().slice(0, 5));
+        setLiveActivities([]);
       } finally {
         setLoadingActivities(false);
       }

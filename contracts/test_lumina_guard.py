@@ -626,6 +626,40 @@ class TestLuminaGuardContract(unittest.TestCase):
         self.assertEqual(evidence[0]["url"], "https://nasa.gov/report")
         self.assertEqual(evidence[0]["provider"], self.submitter_1)
 
+    def test_newly_added_source_canonical_pending_state(self):
+        """Newly added sources must have empty stance and code 0 on-chain before consensus adjudication."""
+        i_id = self._create_and_lock(rule="ANY_EVIDENCE", min_tot=1)
+
+        self._set_caller(self.submitter_1)
+        s1 = self.contract.add_source_material(i_id, "https://canonical-source.org/fact", "Initial evidence submission")
+
+        # Canonical evidence read before adjudication
+        evidence_list = self.contract.get_inquiry_evidence(i_id)
+        self.assertEqual(len(evidence_list), 1)
+        s_data = evidence_list[0]
+
+        # Verify source ID was assigned canonically
+        self.assertEqual(s_data["source_id"], s1)
+        self.assertTrue(s_data["source_id"].startswith("SRC-"))
+
+        # Crucial check: stance MUST be empty string (not fabricated as 'BACKS')
+        self.assertEqual(s_data["stance"], "")
+        self.assertNotEqual(s_data["stance"], "BACKS")
+
+        # Crucial check: HTTP status code MUST be 0 (not fabricated as 200 before crawl)
+        self.assertEqual(s_data["code"], 0)
+        self.assertNotEqual(s_data["code"], 200)
+
+        # After resolution consensus, the source gets actual adjudicated stance & code
+        self.contract._execute_consensus = lambda ctx, s_list: {
+            "readings": [{"id": s1, "active": True, "code": 200, "stance": "BACKS", "released_at": "2026-10-02T12:00:00Z"}]
+        }
+        self.contract.resolve_inquiry(i_id)
+
+        evidence_after = self.contract.get_inquiry_evidence(i_id)
+        self.assertEqual(evidence_after[0]["stance"], "BACKS")
+        self.assertEqual(evidence_after[0]["code"], 200)
+
 
 if __name__ == "__main__":
     unittest.main()
